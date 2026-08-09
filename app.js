@@ -773,63 +773,33 @@
         const kwLen = keyword.length;
         const textLen = fullText.length;
 
-        // 最大预览长度（字符数）
-        const MAX_PREVIEW_LEN = 80;
-
-        // 如果文本本身不长，完整显示并高亮
-        if (textLen <= MAX_PREVIEW_LEN) {
+        // ----- 短文本：完整显示，直接高亮 -----
+        if (textLen <= 60) {
             const before = escapeHtml(fullText.substring(0, keywordIndex));
             const hit = escapeHtml(fullText.substring(keywordIndex, keywordIndex + kwLen));
             const after = escapeHtml(fullText.substring(keywordIndex + kwLen));
             return before + '<em>' + hit + '</em>' + after;
         }
 
-        // ----- 长文本：微信风格截断 -----
-        // 目标：尽可能显示完整上下文，只在必要时截断
-        // 策略：优先显示关键词前后的内容，如果关键词在前面，保留后面尽可能多的内容
-        //       如果关键词在后面，保留前面尽可能多的内容
-        //       如果关键词在中间，前后都保留一部分
+        // ----- 长文本：截断显示，确保关键词可见 -----
+        const BEFORE_MAX = 30;
+        const AFTER_MAX = 40;
 
-        const BEFORE_KEEP = 35; // 关键词前面最多保留的字符数
-        const AFTER_KEEP = 45; // 关键词后面最多保留的字符数
+        let start = Math.max(0, keywordIndex - BEFORE_MAX);
+        let end = Math.min(textLen, keywordIndex + kwLen + AFTER_MAX);
 
-        let start = Math.max(0, keywordIndex - BEFORE_KEEP);
-        let end = Math.min(textLen, keywordIndex + kwLen + AFTER_KEEP);
+        const hasPrefix = start > 0;
+        const hasSuffix = end < textLen;
 
-        // 如果前面还有空间，尽量往前扩展
-        if (start > 0 && keywordIndex - start < BEFORE_KEEP) {
-            start = Math.max(0, keywordIndex - BEFORE_KEEP);
-        }
-
-        // 如果后面还有空间，尽量往后扩展
-        if (end < textLen && end - (keywordIndex + kwLen) < AFTER_KEEP) {
-            end = Math.min(textLen, keywordIndex + kwLen + AFTER_KEEP);
-        }
-
-        // 如果前面还有更多内容，加 '...'
-        const prefixDots = start > 0 ? '...' : '';
-        // 如果后面还有更多内容，加 '...'
-        const suffixDots = end < textLen ? '...' : '';
-
-        // 提取片段
         let snippet = fullText.substring(start, end);
-
-        // 计算关键词在片段中的位置
         const snippetKeywordStart = keywordIndex - start;
         const snippetKeywordEnd = snippetKeywordStart + kwLen;
 
-        // 构建预览
-        let result = '';
-
-        // 对片段进行转义和高亮
         const beforeHit = escapeHtml(snippet.substring(0, snippetKeywordStart));
         const hitText = escapeHtml(snippet.substring(snippetKeywordStart, snippetKeywordEnd));
         const afterHit = escapeHtml(snippet.substring(snippetKeywordEnd));
 
-        // 组合：前缀 + 高亮前文本 + 高亮关键词 + 高亮后文本 + 后缀
-        result = prefixDots + beforeHit + '<em>' + hitText + '</em>' + afterHit + suffixDots;
-
-        return result;
+        return (hasPrefix ? '...' : '') + beforeHit + '<em>' + hitText + '</em>' + afterHit + (hasSuffix ? '...' : '');
     }
 
     function renderSearchResults() {
@@ -855,7 +825,6 @@
             const time = formatBeijingTime(msg.create_time);
             const fullText = msg._text || '';
 
-            // 使用微信风格的预览生成
             const preview = generateSearchPreview(fullText, q);
 
             html += '<div class="sd-item" data-index="' + match.index + '">' +
@@ -872,7 +841,6 @@
         searchDropdown.innerHTML = html;
         searchDropdown.classList.add('show');
 
-        // 绑定点击事件
         searchDropdown.querySelectorAll('.sd-item').forEach(el => {
             el.addEventListener('click', function() {
                 const idx = parseInt(this.dataset.index);
