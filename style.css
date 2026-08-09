@@ -137,93 +137,113 @@ input[type="file"] {
     background: #e8eaed;
 }
 
-/* ===== 搜索下拉 ===== */
+/* ===== 搜索下拉 - 微信风格 ===== */
 #search-dropdown {
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 4px);
     left: 0;
     right: 0;
-    background: #fff;
-    border-radius: 14px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
-    max-height: 420px;
+    max-height: 70vh;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
     display: none;
     z-index: 100;
-    padding: 8px 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 #search-dropdown.show {
     display: block;
 }
-#search-dropdown .sd-header {
-    padding: 8px 18px 12px 18px;
-    font-size: 14px;
-    color: #999;
-    border-bottom: 1px solid #f0f0f0;
+
+.sd-header {
+    padding: 8px 16px;
+    font-size: 13px;
+    color: #999999;
+    background: #f7f7f7;
+    border-bottom: 1px solid #eeeeee;
+    border-radius: 12px 12px 0 0;
+    box-sizing: border-box;
 }
+
 .sd-item {
-    display: flex;
-    flex-direction: column;
-    padding: 10px 18px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
     cursor: pointer;
-    transition: background 0.12s;
-    border-bottom: 1px solid #f5f5f5;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
 }
 .sd-item:active {
-    background: #f0f4ff;
+    background: #f5f5f5;
 }
 .sd-item:last-child {
     border-bottom: none;
 }
-.sd-item .sd-top {
+
+.sd-top {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
-    font-size: 13px;
-    margin-bottom: 3px;
-}
-.sd-item .sd-name {
-    font-weight: 600;
-    color: #1a73e8;
+    align-items: center;
+    margin-bottom: 4px;
     font-size: 15px;
 }
-.sd-item .sd-time {
-    color: #aaa;
-    font-size: 12px;
-    flex-shrink: 0;
-    margin-left: 10px;
-}
-.sd-item .sd-preview {
-    font-size: 15px;
-    color: #333;
-    white-space: nowrap;
+
+.sd-name {
+    font-weight: 500;
+    color: #333333;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60%;
 }
-.sd-item .sd-preview em {
-    background: #ffeb3b;
+
+.sd-time {
+    font-size: 12px;
+    color: #999999;
+    flex-shrink: 0;
+    margin-left: 12px;
+}
+
+/* ===== 核心：强制单行 + CSS 自动省略，和微信完全一致 ===== */
+.sd-preview {
+    display: block;
+    font-size: 14px;
+    color: #666666;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+}
+
+/* ===== 关键词高亮 - 微信同款绿色 ===== */
+.sd-preview em {
     font-style: normal;
-    padding: 0 2px;
-    border-radius: 2px;
+    color: #07c160;
+    font-weight: 500;
 }
-.sd-empty {
-    padding: 30px 18px;
-    text-align: center;
-    color: #bbb;
-    font-size: 15px;
-}
+
 .sd-more-btn {
-    padding: 12px 18px;
+    padding: 12px;
     text-align: center;
-    color: #1a73e8;
-    font-weight: 600;
-    font-size: 15px;
-    cursor: pointer;
+    color: #1677ff;
+    font-size: 14px;
     border-top: 1px solid #f0f0f0;
-    transition: background 0.12s;
+    cursor: pointer;
+    border-radius: 0 0 12px 12px;
 }
 .sd-more-btn:active {
-    background: #f0f4ff;
+    background: #f5f5f5;
+}
+
+.sd-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #999999;
+    font-size: 14px;
 }
 
 /* ===== 消息列表 ===== */
@@ -888,13 +908,16 @@ input[type="file"] {
         font-size: 36px;
     }
     .sd-item .sd-top {
-        font-size: 12px;
+        font-size: 14px;
     }
     .sd-item .sd-name {
         font-size: 14px;
     }
     .sd-item .sd-preview {
         font-size: 14px;
+    }
+    .sd-item {
+        padding: 10px 14px;
     }
 }
 @media (max-width: 400px) {
@@ -935,5 +958,17 @@ input[type="file"] {
     #upload-zone .upload-btn {
         font-size: 16px;
         padding: 12px 28px;
+    }
+    .sd-item .sd-top {
+        font-size: 13px;
+    }
+    .sd-item .sd-name {
+        font-size: 13px;
+    }
+    .sd-item .sd-preview {
+        font-size: 13px;
+    }
+    .sd-item {
+        padding: 8px 12px;
     }
 }
