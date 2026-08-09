@@ -61,13 +61,15 @@
     };
     let pendingConfirm = null;
 
-    // 虚拟滚动状态
+    // 虚拟滚动状态 - 动态高度
     let scrollViewport = null;
-    let itemHeight = 130;
     const BUFFER_SIZE = 5;
     let visibleStart = 0;
     let visibleEnd = 0;
     let scrollFrameId = null;
+    let itemHeights = [];
+    let itemOffsets = [];
+    let totalHeight = 0;
 
     // 搜索状态
     let searchResults = [];
@@ -406,12 +408,71 @@
         return result;
     }
 
-    // ===== 虚拟滚动渲染 =====
+    // ===== 动态高度虚拟滚动 =====
 
-    function getItemHeight() {
-        if (window.innerWidth <= 400) return 115;
-        if (window.innerWidth <= 600) return 125;
-        return 135;
+    function estimateItemHeight(msg) {
+        const text = msg._text || '';
+        const charCount = text.length;
+        // 基础高度：头部 + padding
+        let baseHeight = 50;
+        // 气泡高度：每行约22px，每行约22个字符
+        const lineWidth = 22;
+        const lines = Math.max(1, Math.ceil(charCount / lineWidth));
+        const bubbleHeight = lines * 22;
+        baseHeight += bubbleHeight;
+        baseHeight += 34; // 按钮区域 + 间距
+        return Math.max(110, baseHeight);
+    }
+
+    function buildHeightCache() {
+        const count = allMessages.length;
+        itemHeights = new Array(count);
+        itemOffsets = new Array(count);
+        totalHeight = 0;
+        for (let i = 0; i < count; i++) {
+            const h = estimateItemHeight(allMessages[i]);
+            itemHeights[i] = h;
+            itemOffsets[i] = totalHeight;
+            totalHeight += h;
+        }
+    }
+
+    function findVisibleRange(scrollTop, containerHeight) {
+        const count = allMessages.length;
+        if (count === 0) return { start: 0, end: 0 };
+
+        let start = 0;
+        let end = count - 1;
+        while (start < end) {
+            const mid = Math.floor((start + end) / 2);
+            if (itemOffsets[mid] + itemHeights[mid] < scrollTop) {
+                start = mid + 1;
+            } else {
+                end = mid;
+            }
+        }
+        start = Math.max(0, start - BUFFER_SIZE);
+
+        const bottom = scrollTop + containerHeight;
+        end = start;
+        while (end < count && itemOffsets[end] < bottom + BUFFER_SIZE * 100) {
+            end++;
+        }
+        end = Math.min(count, end + BUFFER_SIZE);
+
+        return { start, end };
+    }
+
+    function buildViewport() {
+        if (!scrollViewport) {
+            scrollViewport = document.createElement('div');
+            scrollViewport.id = 'scroll-viewport';
+            scrollViewport.style.position = 'relative';
+            scrollViewport.style.width = '100%';
+            scrollViewport.style.minHeight = '100%';
+            messagesContainer.appendChild(scrollViewport);
+        }
+        return scrollViewport;
     }
 
     function createMessageElement(msg, index) {
@@ -431,9 +492,8 @@
         item.style.position = 'absolute';
         item.style.left = '0';
         item.style.right = '0';
-        item.style.top = (index * itemHeight) + 'px';
-        item.style.height = itemHeight + 'px';
-        item.style.paddingBottom = '16px';
+        item.style.top = itemOffsets[index] + 'px';
+        item.style.height = itemHeights[index] + 'px';
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -471,13 +531,13 @@
 
         const copyBtn = document.createElement('button');
         copyBtn.className = 'msg-action-btn copy-btn';
-        copyBtn.textContent = '📋 复制';
+        copyBtn.textContent = '复制';
         copyBtn.dataset.action = 'copy';
         copyBtn.dataset.index = index;
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'msg-action-btn delete-btn';
-        deleteBtn.textContent = '🗑️ 删除';
+        deleteBtn.textContent = '删除';
         deleteBtn.dataset.action = 'delete';
         deleteBtn.dataset.index = index;
 
@@ -494,20 +554,8 @@
         return item;
     }
 
-    function buildViewport() {
-        if (!scrollViewport) {
-            scrollViewport = document.createElement('div');
-            scrollViewport.id = 'scroll-viewport';
-            scrollViewport.style.position = 'relative';
-            scrollViewport.style.width = '100%';
-            scrollViewport.style.minHeight = '100%';
-            messagesContainer.appendChild(scrollViewport);
-        }
-        return scrollViewport;
-    }
-
     function fullRebuild() {
-        itemHeight = getItemHeight();
+        buildHeightCache();
         const viewport = buildViewport();
 
         const total = allMessages.length;
@@ -519,20 +567,18 @@
             return;
         }
 
-        viewport.style.height = (total * itemHeight) + 'px';
+        viewport.style.height = totalHeight + 'px';
         viewport.innerHTML = '';
 
         const containerHeight = messagesContainer.clientHeight || 600;
         const scrollTop = messagesContainer.scrollTop || 0;
 
-        const start = Math.max(0, Math.floor(scrollTop / itemHeight) - BUFFER_SIZE);
-        const end = Math.min(total, Math.ceil((scrollTop + containerHeight) / itemHeight) + BUFFER_SIZE);
-
-        visibleStart = start;
-        visibleEnd = end;
+        const range = findVisibleRange(scrollTop, containerHeight);
+        visibleStart = range.start;
+        visibleEnd = range.end;
 
         const fragment = document.createDocumentFragment();
-        for (let i = start; i < end; i++) {
+        for (let i = visibleStart; i < visibleEnd; i++) {
             fragment.appendChild(createMessageElement(allMessages[i], i));
         }
         viewport.appendChild(fragment);
@@ -543,25 +589,25 @@
     function updateViewport() {
         if (!scrollViewport || allMessages.length === 0) return;
 
-        const total = allMessages.length;
         const containerHeight = messagesContainer.clientHeight || 600;
         const scrollTop = messagesContainer.scrollTop || 0;
 
-        const start = Math.max(0, Math.floor(scrollTop / itemHeight) - BUFFER_SIZE);
-        const end = Math.min(total, Math.ceil((scrollTop + containerHeight) / itemHeight) + BUFFER_SIZE);
+        const range = findVisibleRange(scrollTop, containerHeight);
+        const start = range.start;
+        const end = range.end;
 
-        // 更新所有现有节点的位置
+        // 更新现有节点的位置
         const children = scrollViewport.children;
         for (let i = 0; i < children.length; i++) {
             const child = children[i];
             if (child.dataset && child.dataset.index !== undefined) {
                 const idx = parseInt(child.dataset.index);
-                child.style.top = (idx * itemHeight) + 'px';
-                child.style.height = itemHeight + 'px';
+                child.style.top = itemOffsets[idx] + 'px';
+                child.style.height = itemHeights[idx] + 'px';
             }
         }
 
-        // 如果范围变化大，进行增删
+        // 范围变化大时增删节点
         if (Math.abs(start - visibleStart) > 2 || Math.abs(end - visibleEnd) > 2) {
             visibleStart = start;
             visibleEnd = end;
@@ -602,12 +648,12 @@
                 scrollViewport.appendChild(fragment);
             }
 
-            // 再次更新所有节点的位置
+            // 再次更新所有节点位置
             for (const idx in childMap) {
                 const el = childMap[idx];
                 const index = parseInt(idx);
-                el.style.top = (index * itemHeight) + 'px';
-                el.style.height = itemHeight + 'px';
+                el.style.top = itemOffsets[index] + 'px';
+                el.style.height = itemHeights[index] + 'px';
                 el.dataset.index = index;
             }
         }
@@ -615,7 +661,7 @@
 
     function jumpToMessage(index) {
         if (index < 0 || index >= allMessages.length) return;
-        const targetScroll = Math.max(0, index * itemHeight - messagesContainer.clientHeight / 3);
+        const targetScroll = Math.max(0, itemOffsets[index] - messagesContainer.clientHeight / 3);
         messagesContainer.scrollTo({ top: targetScroll, behavior: 'smooth' });
 
         setTimeout(() => {
@@ -1152,7 +1198,6 @@
         if (resizeTimeout) clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
             if (isDataLoaded && allMessages.length > 0) {
-                itemHeight = getItemHeight();
                 fullRebuild();
             }
         }, 300);
