@@ -16,7 +16,6 @@
     const settingsClose = $('settings-close');
     const fileInput = $('file-input');
     const uploadBtn = $('upload-btn');
-    const dropArea = $('drop-area');
     const progressWrap = $('progress-wrap');
     const progressBar = $('progress-bar');
     const pstatus = $('pstatus');
@@ -651,7 +650,7 @@
 
     function applySettings() {
         const botName = settings.botName || 'Bot';
-        title.textContent = '💬 与 ' + botName + ' 的对话';
+        title.textContent = '与 ' + botName + ' 的对话';
 
         if (settings.bgImage) {
             messagesContainer.style.backgroundImage = 'url(' + settings.bgImage + ')';
@@ -699,7 +698,6 @@
         messagesContainer.style.display = 'block';
         footer.style.display = 'flex';
         progressWrap.classList.remove('show');
-        document.querySelector('#upload-zone .drop-area').style.display = 'block';
     }
 
     function showUploadView() {
@@ -709,7 +707,6 @@
         progressWrap.classList.remove('show');
         fileInput.value = '';
         isDataLoaded = false;
-        document.querySelector('#upload-zone .drop-area').style.display = 'block';
     }
 
     // ===== 上传处理 =====
@@ -721,7 +718,6 @@
         }
 
         isParsing = true;
-        document.querySelector('#upload-zone .drop-area').style.display = 'none';
         progressWrap.classList.add('show');
         progressBar.style.width = '0%';
         pstatus.textContent = '0%';
@@ -740,7 +736,6 @@
                 if (messages.length === 0) {
                     showToast('❌ 未解析到任何消息');
                     progressWrap.classList.remove('show');
-                    document.querySelector('#upload-zone .drop-area').style.display = 'block';
                     return;
                 }
 
@@ -769,7 +764,6 @@
                 isParsing = false;
                 showToast('❌ ' + err);
                 progressWrap.classList.remove('show');
-                document.querySelector('#upload-zone .drop-area').style.display = 'block';
             }
         );
     }
@@ -798,27 +792,17 @@
     }
 
     // ===== 事件绑定 =====
-    uploadBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', function() {
-        if (this.files && this.files[0]) handleFile(this.files[0]);
-        this.value = '';
+    // 上传按钮点击触发文件选择
+    uploadBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        fileInput.click();
     });
 
-    dropArea.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        this.classList.add('dragover');
-    });
-    dropArea.addEventListener('dragleave', function(e) {
-        e.preventDefault();
-        this.classList.remove('dragover');
-    });
-    dropArea.addEventListener('drop', function(e) {
-        e.preventDefault();
-        this.classList.remove('dragover');
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
-    });
-    dropArea.addEventListener('click', function(e) {
-        if (e.target === this || e.target.tagName === 'P') fileInput.click();
+    fileInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            handleFile(this.files[0]);
+        }
+        this.value = '';
     });
 
     let searchTimer = null;
@@ -867,7 +851,7 @@
         settings.botName = sBotName.value.trim() || 'Bot';
         try {
             await saveSettingsToDB(settings);
-            title.textContent = '💬 与 ' + settings.botName + ' 的对话';
+            title.textContent = '与 ' + settings.botName + ' 的对话';
             if (isDataLoaded && allMessages.length > 0) updateUI();
             closeSettings();
             showToast('✅ 设置已保存');
