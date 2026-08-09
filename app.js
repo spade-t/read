@@ -408,20 +408,28 @@
         return result;
     }
 
+    // ===== SVG 图标 =====
+
+    function getCopyIcon() {
+        return `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+    }
+
+    function getDeleteIcon() {
+        return `<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
+    }
+
     // ===== 动态高度虚拟滚动 =====
 
     function estimateItemHeight(msg) {
         const text = msg._text || '';
         const charCount = text.length;
-        // 基础高度：头部 + padding
-        let baseHeight = 50;
-        // 气泡高度：每行约22px，每行约22个字符
+        let baseHeight = 48;
         const lineWidth = 22;
         const lines = Math.max(1, Math.ceil(charCount / lineWidth));
-        const bubbleHeight = lines * 22;
+        const bubbleHeight = lines * 22 + 16;
         baseHeight += bubbleHeight;
-        baseHeight += 34; // 按钮区域 + 间距
-        return Math.max(110, baseHeight);
+        baseHeight += 28;
+        return Math.max(120, baseHeight);
     }
 
     function buildHeightCache() {
@@ -494,6 +502,7 @@
         item.style.right = '0';
         item.style.top = itemOffsets[index] + 'px';
         item.style.height = itemHeights[index] + 'px';
+        item.style.paddingBottom = '0px';
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -526,18 +535,21 @@
         content.textContent = msg._text || '[空消息]';
         bubble.appendChild(content);
 
+        // ===== 操作按钮 - SVG 图标 =====
         const actions = document.createElement('div');
         actions.className = 'msg-actions';
 
         const copyBtn = document.createElement('button');
         copyBtn.className = 'msg-action-btn copy-btn';
-        copyBtn.textContent = '复制';
+        copyBtn.innerHTML = getCopyIcon();
+        copyBtn.title = '复制';
         copyBtn.dataset.action = 'copy';
         copyBtn.dataset.index = index;
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'msg-action-btn delete-btn';
-        deleteBtn.textContent = '删除';
+        deleteBtn.innerHTML = getDeleteIcon();
+        deleteBtn.title = '删除';
         deleteBtn.dataset.action = 'delete';
         deleteBtn.dataset.index = index;
 
@@ -596,7 +608,6 @@
         const start = range.start;
         const end = range.end;
 
-        // 更新现有节点的位置
         const children = scrollViewport.children;
         for (let i = 0; i < children.length; i++) {
             const child = children[i];
@@ -607,7 +618,6 @@
             }
         }
 
-        // 范围变化大时增删节点
         if (Math.abs(start - visibleStart) > 2 || Math.abs(end - visibleEnd) > 2) {
             visibleStart = start;
             visibleEnd = end;
@@ -648,7 +658,6 @@
                 scrollViewport.appendChild(fragment);
             }
 
-            // 再次更新所有节点位置
             for (const idx in childMap) {
                 const el = childMap[idx];
                 const index = parseInt(idx);
@@ -994,7 +1003,6 @@
                     pdetail.textContent = '✅ 完成！共 ' + allMessages.length.toLocaleString() + ' 条消息';
                     pstatus.textContent = '✅ 完成';
                     showToast('✅ 导入完成');
-                    // 定位到第一条消息
                     setTimeout(() => {
                         messagesContainer.scrollTop = 0;
                         localStorage.setItem('chat_scroll_top', '0');
@@ -1038,7 +1046,6 @@
         this.value = '';
     });
 
-    // 搜索
     let searchTimer = null;
     searchInput.addEventListener('input', function() {
         const val = this.value;
@@ -1082,7 +1089,6 @@
         }
     });
 
-    // 设置
     settingsBtn.addEventListener('click', openSettings);
     settingsClose.addEventListener('click', closeSettings);
     settingsOverlay.addEventListener('click', function(e) {
