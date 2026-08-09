@@ -63,6 +63,15 @@
     let renderStart = 0;
     let renderEnd = 0;
     let isScrolling = false;
+    let scrollRAF = null;
+
+    // 搜索状态
+    let searchResults = [];
+    let searchDisplayCount = 50;
+    const SEARCH_BATCH_SIZE = 50;
+
+    // 保存滚动位置
+    let savedScrollTop = 0;
 
     // ===== 消息文本提取 =====
     function extractRealText(showContent) {
@@ -284,6 +293,24 @@
         return result;
     }
 
+    // 保存滚动位置
+    function saveScrollPosition() {
+        if (messagesContainer && isDataLoaded) {
+            try {
+                localStorage.setItem('chat_scroll_top', String(messagesContainer.scrollTop));
+            } catch (e) {}
+        }
+    }
+
+    function loadScrollPosition() {
+        try {
+            const pos = localStorage.getItem('chat_scroll_top');
+            if (pos !== null) {
+                savedScrollTop = parseInt(pos, 10) || 0;
+            }
+        } catch (e) {}
+    }
+
     // ===== JSON 解析 =====
     function parseJSONFileComplete(file, onProgress, onComplete, onError) {
         const reader = new FileReader();
@@ -309,28 +336,34 @@
 
     // ===== 渲染 =====
     function getItemHeight() {
-        if (window.innerWidth <= 400) return 80;
-        if (window.innerWidth <= 600) return 86;
-        return 96;
+        if (window.innerWidth <= 400) return 90;
+        if (window.innerWidth <= 600) return 100;
+        return 110;
     }
 
     function renderMessages(container, start, end) {
         const total = allMessages.length;
         if (total === 0) {
             container.innerHTML =
-                '<div style="text-align:center;padding:50px 20px;color:#999;font-size:15px;">暂无消息</div>';
+                '<div style="text-align:center;padding:60px 20px;color:#999;font-size:16px;">暂无消息</div>';
             return;
         }
         const itemH = getItemHeight();
+
+        // 使用 DocumentFragment 批量构建
+        const fragment = document.createDocumentFragment();
         const wrapper = document.createElement('div');
         wrapper.style.paddingTop = Math.max(0, start * itemH) + 'px';
         wrapper.style.paddingBottom = Math.max(0, (total - end) * itemH) + 'px';
+
         const actualEnd = Math.min(end, total);
         for (let i = start; i < actualEnd; i++) {
             wrapper.appendChild(createMessageElement(allMessages[i], i));
         }
+
+        fragment.appendChild(wrapper);
         container.innerHTML = '';
-        container.appendChild(wrapper);
+        container.appendChild(fragment);
     }
 
     function createMessageElement(msg, index) {
@@ -434,6 +467,8 @@
         document.body.removeChild(ta);
     }
 
+    let toastTimer = null;
+
     function showToast(message) {
         const existing = document.querySelector('.custom-toast');
         if (existing) existing.remove();
@@ -447,12 +482,13 @@
             toast.classList.add('show');
         });
 
-        setTimeout(() => {
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
             toast.classList.remove('show');
             setTimeout(() => {
                 if (toast.parentNode) toast.remove();
             }, 300);
-        }, 1800);
+        }, 2000);
     }
 
     function formatBeijingTime(isoStr) {
@@ -491,32 +527,45 @@
     function performSearch(query) {
         if (!query.trim()) {
             searchDropdown.classList.remove('show');
+            searchResults = [];
+            searchDisplayCount = SEARCH_BATCH_SIZE;
             return;
         }
         const q = query.trim().toLowerCase();
-        const matches = [];
+        searchResults = [];
         for (let i = 0; i < allMessages.length; i++) {
             const msg = allMessages[i];
             if ((msg._text || '').toLowerCase().includes(q)) {
-                matches.push({ index: i, msg });
-                if (matches.length > 200) break;
+                searchResults.push({ index: i, msg });
+                if (searchResults.length > 2000) break;
             }
         }
+        searchDisplayCount = SEARCH_BATCH_SIZE;
+        renderSearchResults();
+    }
 
-        if (matches.length === 0) {
+    function renderSearchResults() {
+        if (searchResults.length === 0) {
             searchDropdown.innerHTML = '<div class="sd-empty">没有找到匹配的消息</div>';
             searchDropdown.classList.add('show');
             return;
         }
 
-        let html = '<div class="sd-header">共 ' + matches.length + ' 条结果</div>';
-        for (const match of matches) {
+        const total = searchResults.length;
+        const displayTotal = Math.min(searchDisplayCount, total);
+        const hasMore = displayTotal < total;
+
+        let html = '<div class="sd-header">共 ' + total + ' 条结果</div>';
+
+        for (let i = 0; i < displayTotal; i++) {
+            const match = searchResults[i];
             const msg = match.msg;
             const isUser = msg._userType === 'user';
             let name = isUser ? settings.userName : (settings.botName && settings.botName !== 'Bot' ?
                 settings.botName : (msg._botName || 'Bot'));
             const time = formatBeijingTime(msg.create_time);
             let preview = msg._text || '';
+            const q = searchInput.value.trim().toLowerCase();
             const idx = preview.toLowerCase().indexOf(q);
             if (idx >= 0) {
                 preview = preview.substring(0, idx) + '<em>' + preview.substring(idx, idx + q.length) +
@@ -529,9 +578,16 @@
                 '<span class="sd-time">' + escapeHtml(time) + '</span></div>' +
                 '<div class="sd-preview">' + preview + '</div></div>';
         }
+
+        if (hasMore) {
+            const remaining = total - displayTotal;
+            html += '<div class="sd-more-btn" id="sd-more-btn">▼ 显示更多 (' + remaining + '条)</div>';
+        }
+
         searchDropdown.innerHTML = html;
         searchDropdown.classList.add('show');
 
+        // 绑定点击事件
         searchDropdown.querySelectorAll('.sd-item').forEach(el => {
             el.addEventListener('click', function() {
                 const idx = parseInt(this.dataset.index);
@@ -540,9 +596,20 @@
                     searchDropdown.classList.remove('show');
                     searchInput.value = '';
                     searchClear.classList.remove('show');
+                    searchResults = [];
+                    searchDisplayCount = SEARCH_BATCH_SIZE;
                 }
             });
         });
+
+        const moreBtn = document.getElementById('sd-more-btn');
+        if (moreBtn) {
+            moreBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                searchDisplayCount += SEARCH_BATCH_SIZE;
+                renderSearchResults();
+            });
+        }
     }
 
     function escapeHtml(text) {
@@ -555,14 +622,27 @@
         if (index < 0 || index >= allMessages.length) return;
         const container = messagesContainer;
         const itemH = getItemHeight();
-        container.scrollTo({ top: Math.max(0, index * itemH - container.clientHeight / 3), behavior: 'smooth' });
+        const targetScroll = Math.max(0, index * itemH - container.clientHeight / 3);
+        container.scrollTo({ top: targetScroll, behavior: 'smooth' });
+
+        // 清除之前的高亮
+        const items = container.querySelectorAll('.msg-item');
+        for (const item of items) {
+            item.classList.remove('highlighted');
+        }
+
+        // 高亮目标消息
         setTimeout(() => {
-            const items = container.querySelectorAll('.msg-item');
-            for (const item of items) {
-                item.classList.remove('highlighted');
+            const items2 = container.querySelectorAll('.msg-item');
+            for (const item of items2) {
                 if (item.dataset && parseInt(item.dataset.index) === index) {
                     item.classList.add('highlighted');
                     item.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    // 3秒后移除高亮
+                    setTimeout(() => {
+                        item.classList.remove('highlighted');
+                    }, 3000);
+                    break;
                 }
             }
         }, 400);
@@ -627,7 +707,7 @@
         const total = allMessages.length;
         if (total === 0) {
             container.innerHTML =
-                '<div style="text-align:center;padding:50px 20px;color:#999;font-size:15px;">暂无消息</div>';
+                '<div style="text-align:center;padding:60px 20px;color:#999;font-size:16px;">暂无消息</div>';
             updateFooter();
             return;
         }
@@ -659,8 +739,8 @@
             messagesContainer.style.backgroundColor = 'var(--bg-color)';
         }
 
-        sUserName.value = settings.userName || '我';
-        sBotName.value = settings.botName || 'Bot';
+        sUserName.value = settings.userName || '';
+        sBotName.value = settings.botName || '';
         sUserAvatarPreview.src = settings.userAvatar || '';
         sBotAvatarPreview.src = settings.botAvatar || '';
         sBgPreview.src = settings.bgImage || '';
@@ -677,6 +757,11 @@
                 isDataLoaded = true;
                 showMessagesView();
                 updateUI();
+                // 恢复滚动位置
+                loadScrollPosition();
+                setTimeout(() => {
+                    messagesContainer.scrollTop = savedScrollTop;
+                }, 50);
                 return true;
             }
             return false;
@@ -756,6 +841,10 @@
                     pdetail.textContent = '✅ 完成！共 ' + allMessages.length.toLocaleString() + ' 条消息';
                     pstatus.textContent = '✅ 完成';
                     showToast('✅ 导入完成');
+                    // 滚动到底部
+                    setTimeout(() => {
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    }, 100);
                 } catch (err) {
                     showToast('❌ 保存失败');
                 }
@@ -771,8 +860,8 @@
     // ===== 设置面板 =====
     function openSettings() {
         settingsOverlay.classList.add('open');
-        sUserName.value = settings.userName || '我';
-        sBotName.value = settings.botName || 'Bot';
+        sUserName.value = settings.userName || '';
+        sBotName.value = settings.botName || '';
         sUserAvatarPreview.src = settings.userAvatar || '';
         sBotAvatarPreview.src = settings.botAvatar || '';
         sBgPreview.src = settings.bgImage || '';
@@ -792,7 +881,6 @@
     }
 
     // ===== 事件绑定 =====
-    // 上传按钮点击触发文件选择
     uploadBtn.addEventListener('click', function(e) {
         e.preventDefault();
         fileInput.click();
@@ -815,6 +903,8 @@
         } else {
             searchClear.classList.remove('show');
             searchDropdown.classList.remove('show');
+            searchResults = [];
+            searchDisplayCount = SEARCH_BATCH_SIZE;
         }
     });
     searchInput.addEventListener('keydown', function(e) {
@@ -822,6 +912,8 @@
             this.value = '';
             searchClear.classList.remove('show');
             searchDropdown.classList.remove('show');
+            searchResults = [];
+            searchDisplayCount = SEARCH_BATCH_SIZE;
             this.blur();
         }
         if (e.key === 'Enter') {
@@ -833,11 +925,15 @@
         searchInput.value = '';
         this.classList.remove('show');
         searchDropdown.classList.remove('show');
+        searchResults = [];
+        searchDisplayCount = SEARCH_BATCH_SIZE;
         searchInput.focus();
     });
     document.addEventListener('click', function(e) {
         const wrap = document.getElementById('search-wrap');
-        if (!wrap.contains(e.target)) searchDropdown.classList.remove('show');
+        if (!wrap.contains(e.target)) {
+            searchDropdown.classList.remove('show');
+        }
     });
 
     settingsBtn.addEventListener('click', openSettings);
@@ -889,24 +985,6 @@
         this.value = '';
     });
 
-    document.querySelectorAll('.reset-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const target = this.dataset.target;
-            if (target === 'user-avatar') {
-                settings.userAvatar = '';
-                sUserAvatarPreview.src = '';
-            } else if (target === 'bot-avatar') {
-                settings.botAvatar = '';
-                sBotAvatarPreview.src = '';
-            } else if (target === 'bg') {
-                settings.bgImage = '';
-                sBgPreview.src = '';
-                messagesContainer.style.backgroundImage = 'none';
-                messagesContainer.style.backgroundColor = 'var(--bg-color)';
-            }
-        });
-    });
-
     sUploadJson.addEventListener('click', function() { closeSettings();
         fileInput.click(); });
     sExportMd.addEventListener('click', exportMD);
@@ -935,6 +1013,7 @@
                 applySettings();
                 showUploadView();
                 showToast('🗑️ 已清空所有数据');
+                localStorage.removeItem('chat_scroll_top');
             } catch (err) {
                 showToast('❌ 清空失败');
             }
@@ -948,24 +1027,34 @@
         confirmCancel.addEventListener('click', cancelHandler);
     });
 
-    // ===== 滚动事件 =====
+    // ===== 滚动事件 - 优化流畅度 =====
     messagesContainer.addEventListener('scroll', function() {
-        if (!isDataLoaded || allMessages.length === 0 || isScrolling) return;
+        if (!isDataLoaded || allMessages.length === 0) return;
+
+        // 保存滚动位置
+        saveScrollPosition();
+
+        if (isScrolling) return;
         isScrolling = true;
-        requestAnimationFrame(() => {
+
+        if (scrollRAF) cancelAnimationFrame(scrollRAF);
+        scrollRAF = requestAnimationFrame(() => {
             try {
                 const itemH = getItemHeight();
                 const total = allMessages.length;
                 const scrollTop = this.scrollTop;
                 const clientHeight = this.clientHeight;
+
                 const start = Math.max(0, Math.floor(scrollTop / itemH) - 2);
                 const end = Math.min(total, Math.ceil((scrollTop + clientHeight) / itemH) + 2);
 
-                if (start !== renderStart || end !== renderEnd) {
+                // 只有在变化较大时才重新渲染
+                if (Math.abs(start - renderStart) > 3 || Math.abs(end - renderEnd) > 3) {
                     renderStart = start;
                     renderEnd = end;
                     renderMessages(this, start, end);
                 } else {
+                    // 只更新padding
                     const wrapper = this.querySelector('div:first-child');
                     if (wrapper) {
                         wrapper.style.paddingTop = Math.max(0, start * itemH) + 'px';
@@ -974,6 +1063,7 @@
                 }
             } catch (e) {}
             isScrolling = false;
+            scrollRAF = null;
         });
     });
 
@@ -985,6 +1075,11 @@
         }, 300);
     });
 
+    // 页面关闭时保存滚动位置
+    window.addEventListener('beforeunload', function() {
+        saveScrollPosition();
+    });
+
     // ===== 初始化 =====
     async function init() {
         await loadSettings();
@@ -994,7 +1089,11 @@
         } else {
             showMessagesView();
             updateUI();
-            setTimeout(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; }, 100);
+            // 恢复滚动位置
+            loadScrollPosition();
+            setTimeout(() => {
+                messagesContainer.scrollTop = savedScrollTop;
+            }, 50);
         }
     }
 
