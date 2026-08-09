@@ -3,19 +3,21 @@
 let allMessages = [];
 let settings = { userName: '我', botName: 'Bot', userAvatar: '', botAvatar: '', bgImage: '' };
 let scrollViewport = null;
-let itemHeight = 120;
+let itemHeight = 130;  // 增大基础高度
 const BUFFER_SIZE = 5;
 let visibleStart = 0;
 let visibleEnd = 0;
 let scrollFrameId = null;
 let deleteMessageCallback = null;
 let confirmActionCallback = null;
+let messagesContainerRef = null;
 
-function initRenderer(messages, settingsObj, deleteFn, confirmFn) {
+function initRenderer(messages, settingsObj, deleteFn, confirmFn, container) {
     allMessages = messages;
     settings = settingsObj;
     deleteMessageCallback = deleteFn;
     confirmActionCallback = confirmFn;
+    messagesContainerRef = container;
 }
 
 function setMessages(messages) {
@@ -23,9 +25,10 @@ function setMessages(messages) {
 }
 
 function getItemHeight() {
-    if (window.innerWidth <= 400) return 100;
-    if (window.innerWidth <= 600) return 110;
-    return 125;
+    // 根据屏幕宽度调整
+    if (window.innerWidth <= 400) return 115;
+    if (window.innerWidth <= 600) return 125;
+    return 135;
 }
 
 function buildViewport(container) {
@@ -59,6 +62,7 @@ function createMessageElement(msg, index) {
     item.style.right = '0';
     item.style.top = (index * itemHeight) + 'px';
     item.style.height = itemHeight + 'px';
+    item.style.paddingBottom = '16px';
 
     const row = document.createElement('div');
     row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -96,31 +100,15 @@ function createMessageElement(msg, index) {
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'msg-action-btn copy-btn';
-    copyBtn.textContent = '复制';
-    copyBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        const text = msg._text || '';
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
-        } else {
-            fallbackCopy(text);
-        }
-    });
+    copyBtn.textContent = '📋 复制';
+    copyBtn.dataset.action = 'copy';
+    copyBtn.dataset.index = index;
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'msg-action-btn delete-btn';
-    deleteBtn.textContent = '删除';
-    const idx = index;
-    deleteBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (confirmActionCallback) {
-            confirmActionCallback().then((ok) => {
-                if (ok && deleteMessageCallback) {
-                    deleteMessageCallback(idx);
-                }
-            }).catch(() => {});
-        }
-    });
+    deleteBtn.textContent = '🗑️ 删除';
+    deleteBtn.dataset.action = 'delete';
+    deleteBtn.dataset.index = index;
 
     actions.appendChild(copyBtn);
     actions.appendChild(deleteBtn);
@@ -133,6 +121,39 @@ function createMessageElement(msg, index) {
     row.appendChild(body);
     item.appendChild(row);
     return item;
+}
+
+// ===== 事件委托：监听容器上的点击 =====
+function setupMessageEvents(container) {
+    container.addEventListener('click', function(e) {
+        const btn = e.target.closest('.msg-action-btn');
+        if (!btn) return;
+
+        const action = btn.dataset.action;
+        const index = parseInt(btn.dataset.index);
+        if (isNaN(index) || index < 0 || index >= allMessages.length) return;
+
+        const msg = allMessages[index];
+
+        if (action === 'copy') {
+            const text = msg._text || '';
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
+            } else {
+                fallbackCopy(text);
+            }
+            e.stopPropagation();
+        } else if (action === 'delete') {
+            e.stopPropagation();
+            if (confirmActionCallback) {
+                confirmActionCallback().then((ok) => {
+                    if (ok && deleteMessageCallback) {
+                        deleteMessageCallback(index);
+                    }
+                }).catch(() => {});
+            }
+        }
+    });
 }
 
 function fullRebuild(container) {
@@ -176,7 +197,7 @@ function updateViewport(container) {
     const start = Math.max(0, Math.floor(scrollTop / itemHeight) - BUFFER_SIZE);
     const end = Math.min(total, Math.ceil((scrollTop + containerHeight) / itemHeight) + BUFFER_SIZE);
 
-    // 微调：更新所有节点的 top 位置
+    // 先更新所有现有节点的位置
     const children = scrollViewport.children;
     for (let i = 0; i < children.length; i++) {
         const child = children[i];
@@ -187,7 +208,7 @@ function updateViewport(container) {
         }
     }
 
-    // 如果范围变化较大，进行增删
+    // 如果范围变化大，进行增删
     if (Math.abs(start - visibleStart) > 2 || Math.abs(end - visibleEnd) > 2) {
         visibleStart = start;
         visibleEnd = end;
