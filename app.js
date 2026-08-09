@@ -762,7 +762,7 @@
         renderSearchResults();
     }
 
-    // ===== 生成搜索预览 - 只做高亮，不截断 =====
+    // ===== 生成搜索预览 - JS手动截断 =====
     function generateSearchPreview(fullText, keyword) {
         if (!fullText) return '';
         if (!keyword) return escapeHtml(fullText);
@@ -776,12 +776,39 @@
         }
 
         const kwLen = keyword.length;
-        const before = escapeHtml(fullText.substring(0, keywordIndex));
-        const hit = escapeHtml(fullText.substring(keywordIndex, keywordIndex + kwLen));
-        const after = escapeHtml(fullText.substring(keywordIndex + kwLen));
+        const textLen = fullText.length;
 
-        // 只做高亮，不截断！CSS 的 white-space: nowrap + text-overflow: ellipsis 会自动处理
-        return before + '<em>' + hit + '</em>' + after;
+        // 短文本：完整显示
+        if (textLen <= 50) {
+            const before = escapeHtml(fullText.substring(0, keywordIndex));
+            const hit = escapeHtml(fullText.substring(keywordIndex, keywordIndex + kwLen));
+            const after = escapeHtml(fullText.substring(keywordIndex + kwLen));
+            return before + '<em>' + hit + '</em>' + after;
+        }
+
+        // 长文本：截断，关键词居中
+        const CONTEXT_LEN = 20;
+
+        let start = Math.max(0, keywordIndex - CONTEXT_LEN);
+        let end = Math.min(textLen, keywordIndex + kwLen + CONTEXT_LEN);
+
+        const hasPrefix = start > 0;
+        const hasSuffix = end < textLen;
+
+        let snippet = fullText.substring(start, end);
+        const snippetKeywordStart = keywordIndex - start;
+        const snippetKeywordEnd = snippetKeywordStart + kwLen;
+
+        const beforeHit = escapeHtml(snippet.substring(0, snippetKeywordStart));
+        const hitText = escapeHtml(snippet.substring(snippetKeywordStart, snippetKeywordEnd));
+        const afterHit = escapeHtml(snippet.substring(snippetKeywordEnd));
+
+        let result = '';
+        if (hasPrefix) result += '...';
+        result += beforeHit + '<em>' + hitText + '</em>' + afterHit;
+        if (hasSuffix) result += '...';
+
+        return result;
     }
 
     // ===== 渲染搜索结果 =====
