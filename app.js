@@ -756,8 +756,8 @@
         renderSearchResults();
     }
 
-    // ===== 生成搜索预览（带高亮和截断） =====
-    function generateSearchPreview(fullText, keyword, maxLength) {
+    // ===== 微信风格搜索预览 =====
+    function generateSearchPreview(fullText, keyword) {
         if (!fullText) return '';
         if (!keyword) return escapeHtml(fullText);
 
@@ -765,43 +765,51 @@
         const lowerKeyword = keyword.toLowerCase();
         const keywordIndex = lowerText.indexOf(lowerKeyword);
 
-        // 如果没找到关键词，直接返回截断文本
+        // 如果没找到关键词，返回原文
         if (keywordIndex === -1) {
-            if (fullText.length > maxLength) {
-                return escapeHtml(fullText.substring(0, maxLength)) + '...';
-            }
             return escapeHtml(fullText);
         }
 
         const kwLen = keyword.length;
         const textLen = fullText.length;
 
-        // 如果文本本身不长，直接高亮显示
-        if (textLen <= maxLength) {
+        // 最大预览长度（字符数）
+        const MAX_PREVIEW_LEN = 80;
+
+        // 如果文本本身不长，完整显示并高亮
+        if (textLen <= MAX_PREVIEW_LEN) {
             const before = escapeHtml(fullText.substring(0, keywordIndex));
             const hit = escapeHtml(fullText.substring(keywordIndex, keywordIndex + kwLen));
             const after = escapeHtml(fullText.substring(keywordIndex + kwLen));
             return before + '<em>' + hit + '</em>' + after;
         }
 
-        // 长文本：截取关键词前后部分
-        const contextBefore = 20; // 关键词前面保留的字符数
-        const contextAfter = 30; // 关键词后面保留的字符数
+        // ----- 长文本：微信风格截断 -----
+        // 目标：尽可能显示完整上下文，只在必要时截断
+        // 策略：优先显示关键词前后的内容，如果关键词在前面，保留后面尽可能多的内容
+        //       如果关键词在后面，保留前面尽可能多的内容
+        //       如果关键词在中间，前后都保留一部分
 
-        let start = Math.max(0, keywordIndex - contextBefore);
-        let end = Math.min(textLen, keywordIndex + kwLen + contextAfter);
+        const BEFORE_KEEP = 35; // 关键词前面最多保留的字符数
+        const AFTER_KEEP = 45; // 关键词后面最多保留的字符数
 
-        // 调整start到合适位置，避免截断在中间
-        let prefixDots = '';
-        if (start > 0) {
-            // 尽量从单词/字符边界开始
-            prefixDots = '...';
+        let start = Math.max(0, keywordIndex - BEFORE_KEEP);
+        let end = Math.min(textLen, keywordIndex + kwLen + AFTER_KEEP);
+
+        // 如果前面还有空间，尽量往前扩展
+        if (start > 0 && keywordIndex - start < BEFORE_KEEP) {
+            start = Math.max(0, keywordIndex - BEFORE_KEEP);
         }
 
-        let suffixDots = '';
-        if (end < textLen) {
-            suffixDots = '...';
+        // 如果后面还有空间，尽量往后扩展
+        if (end < textLen && end - (keywordIndex + kwLen) < AFTER_KEEP) {
+            end = Math.min(textLen, keywordIndex + kwLen + AFTER_KEEP);
         }
+
+        // 如果前面还有更多内容，加 '...'
+        const prefixDots = start > 0 ? '...' : '';
+        // 如果后面还有更多内容，加 '...'
+        const suffixDots = end < textLen ? '...' : '';
 
         // 提取片段
         let snippet = fullText.substring(start, end);
@@ -810,22 +818,16 @@
         const snippetKeywordStart = keywordIndex - start;
         const snippetKeywordEnd = snippetKeywordStart + kwLen;
 
-        // 构建带高亮的预览
+        // 构建预览
         let result = '';
-        if (prefixDots) {
-            result += prefixDots;
-        }
 
         // 对片段进行转义和高亮
         const beforeHit = escapeHtml(snippet.substring(0, snippetKeywordStart));
         const hitText = escapeHtml(snippet.substring(snippetKeywordStart, snippetKeywordEnd));
         const afterHit = escapeHtml(snippet.substring(snippetKeywordEnd));
 
-        result += beforeHit + '<em>' + hitText + '</em>' + afterHit;
-
-        if (suffixDots) {
-            result += suffixDots;
-        }
+        // 组合：前缀 + 高亮前文本 + 高亮关键词 + 高亮后文本 + 后缀
+        result = prefixDots + beforeHit + '<em>' + hitText + '</em>' + afterHit + suffixDots;
 
         return result;
     }
@@ -853,8 +855,8 @@
             const time = formatBeijingTime(msg.create_time);
             const fullText = msg._text || '';
 
-            // 使用新的预览生成函数
-            const preview = generateSearchPreview(fullText, q, 60);
+            // 使用微信风格的预览生成
+            const preview = generateSearchPreview(fullText, q);
 
             html += '<div class="sd-item" data-index="' + match.index + '">' +
                 '<div class="sd-top"><span class="sd-name">' + escapeHtml(name) + '</span>' +
@@ -870,7 +872,7 @@
         searchDropdown.innerHTML = html;
         searchDropdown.classList.add('show');
 
-        // 重新绑定点击事件
+        // 绑定点击事件
         searchDropdown.querySelectorAll('.sd-item').forEach(el => {
             el.addEventListener('click', function() {
                 const idx = parseInt(this.dataset.index);
@@ -887,7 +889,6 @@
 
         const moreBtn = document.getElementById('sd-more-btn');
         if (moreBtn) {
-            // 移除旧的事件监听
             const newMoreBtn = moreBtn.cloneNode(true);
             moreBtn.parentNode.replaceChild(newMoreBtn, moreBtn);
             newMoreBtn.addEventListener('click', function(e) {
