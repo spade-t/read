@@ -762,7 +762,7 @@
         renderSearchResults();
     }
 
-    // ===== 生成搜索预览 - JS手动截断 =====
+    // ===== 生成搜索预览 - 限制20个字符 =====
     function generateSearchPreview(fullText, keyword) {
         if (!fullText) return '';
         if (!keyword) return escapeHtml(fullText);
@@ -778,21 +778,32 @@
         const kwLen = keyword.length;
         const textLen = fullText.length;
 
-        // 短文本：完整显示
-        if (textLen <= 50) {
+        // 关键词前后各保留的字符数（总长度控制在20以内）
+        const MAX_TOTAL = 20;
+        const half = Math.floor((MAX_TOTAL - kwLen) / 2);
+
+        // 如果文本很短，完整显示
+        if (textLen <= MAX_TOTAL) {
             const before = escapeHtml(fullText.substring(0, keywordIndex));
             const hit = escapeHtml(fullText.substring(keywordIndex, keywordIndex + kwLen));
             const after = escapeHtml(fullText.substring(keywordIndex + kwLen));
             return before + '<em>' + hit + '</em>' + after;
         }
 
-        // 长文本：截断，关键词居中
-        const CONTEXT_LEN = 20;
+        // 计算截取范围
+        let start = Math.max(0, keywordIndex - half);
+        let end = Math.min(textLen, keywordIndex + kwLen + half);
 
-        let start = Math.max(0, keywordIndex - CONTEXT_LEN);
-        let end = Math.min(textLen, keywordIndex + kwLen + CONTEXT_LEN);
+        // 如果总长度超过20，微调
+        let totalLen = end - start;
+        if (totalLen > MAX_TOTAL) {
+            const adjust = totalLen - MAX_TOTAL;
+            start = Math.min(start + adjust, keywordIndex);
+        }
 
+        // 如果前面还有内容，加 '...'
         const hasPrefix = start > 0;
+        // 如果后面还有内容，加 '...'
         const hasSuffix = end < textLen;
 
         let snippet = fullText.substring(start, end);
