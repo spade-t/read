@@ -11,24 +11,24 @@
     <div id="app">
         <!-- ===== 顶部 ===== -->
         <header id="header">
-            <span id="title">💬 与 Bot 的对话</span>
-            <div id="search-wrap">
-                <input type="text" id="search-input" placeholder="搜索..." autocomplete="off">
-                <button id="search-clear" aria-label="清除搜索">✕</button>
-                <div id="search-dropdown"></div>
+            <div id="title-row">
+                <span id="title">与 Bot 的对话</span>
             </div>
-            <button id="settings-btn" aria-label="设置">⚙️</button>
+            <div id="search-row">
+                <div id="search-wrap">
+                    <input type="text" id="search-input" placeholder="搜索..." autocomplete="off">
+                    <button id="search-clear" aria-label="清除搜索">✕</button>
+                    <div id="search-dropdown"></div>
+                </div>
+                <button id="settings-btn" aria-label="设置">⚙️</button>
+            </div>
         </header>
 
         <!-- ===== 上传区域 ===== -->
         <div id="upload-zone">
             <div class="icon">📄</div>
-            <h2>上传 JSON 文件</h2>
-            <div class="drop-area" id="drop-area">
-                <p style="margin-bottom:10px;color:#888;font-size:14px;">点击选择文件 或 拖拽到此</p>
-                <input type="file" id="file-input" accept=".json">
-                <button class="upload-btn" id="upload-btn">选择 JSON 文件</button>
-            </div>
+            <button class="upload-btn" id="upload-btn">📁 上传JSON文件</button>
+            <input type="file" id="file-input" accept=".json" style="display:none;">
             <div id="progress-wrap">
                 <div id="progress-text">
                     <span class="pname" id="pname">文件名</span>
