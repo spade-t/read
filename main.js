@@ -64,10 +64,8 @@
     let renderStart = 0;
     let renderEnd = 0;
     let isScrolling = false;
-    let confirmOkSingle = null;
-    let confirmCancelSingle = null;
 
-    // ===== 消息文本提取（原版完全保留） =====
+    // ===== 消息文本提取 =====
     function extractRealText(showContent) {
         if (!showContent) return '';
         if (typeof showContent === 'string') {
@@ -112,7 +110,7 @@
                 try {
                     const parsed = JSON.parse(field.content);
                     if (parsed.text && typeof parsed.text === 'string') return parsed.text.trim();
-                    if (parsed.content && typeof parsed.text === 'string') return parsed.content.trim();
+                    if (parsed.content && typeof parsed.content === 'string') return parsed.content.trim();
                 } catch (e) {
                     if (field.content.trim()) return field.content.trim();
                 }
@@ -193,10 +191,9 @@
         return { messages: result, botName };
     }
 
-    // ===== IndexedDB（增加全局异常捕获降级，不改动原有逻辑） =====
+    // ===== IndexedDB =====
     function openDB() {
         return new Promise((resolve, reject) => {
-            if (!window.indexedDB) return reject('浏览器不支持IndexedDB');
             const req = indexedDB.open(DB_NAME, DB_VERSION);
             req.onupgradeneeded = (e) => {
                 const d = e.target.result;
@@ -213,108 +210,79 @@
     }
 
     async function getDB() {
-        try {
-            if (!db) db = await openDB();
-            return db;
-        } catch (err) {
-            db = null;
-            throw err;
-        }
+        if (!db) db = await openDB();
+        return db;
     }
 
     async function saveMessagesToDB(messages) {
-        try {
-            const db = await getDB();
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            const store = tx.objectStore(STORE_NAME);
-            for (const msg of messages) store.put(msg);
-            await new Promise((resolve, reject) => {
-                tx.oncomplete = resolve;
-                tx.onerror = () => reject(tx.error);
-            });
-        } catch (e) {
-            console.warn('存储消息失败，本地存储不可用', e);
-        }
+        const db = await getDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        for (const msg of messages) store.put(msg);
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
     }
 
     async function loadAllMessagesFromDB() {
-        try {
-            const db = await getDB();
-            const tx = db.transaction(STORE_NAME, 'readonly');
-            const store = tx.objectStore(STORE_NAME);
-            return new Promise((resolve, reject) => {
-                const req = store.getAll();
-                req.onsuccess = () => resolve(req.result);
-                req.onerror = () => reject(req.error);
-            });
-        } catch (e) {
-            return [];
-        }
+        const db = await getDB();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        return new Promise((resolve, reject) => {
+            const req = store.getAll();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
     }
 
     async function deleteMessageFromDB(messageId) {
-        try {
-            const db = await getDB();
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            const store = tx.objectStore(STORE_NAME);
-            store.delete(messageId);
-            await new Promise((resolve, reject) => {
-                tx.oncomplete = resolve;
-                tx.onerror = () => reject(tx.error);
-            });
-        } catch (e) {
-            console.warn('删除单条消息失败', e);
-        }
+        const db = await getDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.delete(messageId);
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
     }
 
     async function clearAllMessagesDB() {
-        try {
-            const db = await getDB();
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            const store = tx.objectStore(STORE_NAME);
-            store.clear();
-            await new Promise((resolve, reject) => {
-                tx.oncomplete = resolve;
-                tx.onerror = () => reject(tx.error);
-            });
-        } catch (e) {
-            console.warn('清空消息库失败', e);
-        }
+        const db = await getDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.clear();
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
     }
 
-    async function saveSettingsToDB(settingsObj) {
-        try {
-            const db = await getDB();
-            const tx = db.transaction(SETTINGS_STORE, 'readwrite');
-            const store = tx.objectStore(SETTINGS_STORE);
-            for (const [key, value] of Object.entries(settingsObj)) {
-                store.put({ key, value });
-            }
-            await new Promise((resolve, reject) => {
-                tx.oncomplete = resolve;
-                tx.onerror = () => reject(tx.error);
-            });
-        } catch (e) {
-            console.warn('保存设置失败', e);
+    async function saveSettingsToDB(settings) {
+        const db = await getDB();
+        const tx = db.transaction(SETTINGS_STORE, 'readwrite');
+        const store = tx.objectStore(SETTINGS_STORE);
+        for (const [key, value] of Object.entries(settings)) {
+            store.put({ key, value });
         }
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
     }
 
     async function loadSettingsFromDB() {
-        try {
-            const db = await getDB();
-            const tx = db.transaction(SETTINGS_STORE, 'readonly');
-            const store = tx.objectStore(SETTINGS_STORE);
-            const all = await new Promise((resolve, reject) => {
-                const req = store.getAll();
-                req.onsuccess = () => resolve(req.result);
-                req.onerror = () => reject(req.error);
-            });
-            const result = {};
-            for (const item of all) result[item.key] = item.value;
-            return result;
-        } catch (e) {
-            return {};
-        }
+        const db = await getDB();
+        const tx = db.transaction(SETTINGS_STORE, 'readonly');
+        const store = tx.objectStore(SETTINGS_STORE);
+        const all = await new Promise((resolve, reject) => {
+            const req = store.getAll();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        const result = {};
+        for (const item of all) result[item.key] = item.value;
+        return result;
     }
 
     // ===== JSON 解析 =====
@@ -372,8 +340,7 @@
         if (isUser) {
             displayName = settings.userName || '我';
         } else {
-            displayName = settings.botName && settings.botName !== 'Bot' ? settings.botName : (msg._botName ||
-                'Bot');
+            displayName = settings.botName && settings.botName !== 'Bot' ? settings.botName : (msg._botName || 'Bot');
         }
         const avatar = isUser ? settings.userAvatar : settings.botAvatar;
         const time = formatBeijingTime(msg.create_time);
@@ -388,4 +355,665 @@
         const avatarImg = document.createElement('img');
         avatarImg.className = 'msg-avatar';
         avatarImg.src = avatar || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"%3E%3Ccircle cx="20" cy="20" r="20" fill="%23ccc"/%3E%3Ctext x="20" y="26" font-size="18" text-anchor="middle" fill="%23999"%3E' +
-            (isUser ? '我' : 'B')
+            (isUser ? '我' : 'B') + '%3C/text%3E%3C/svg%3E';
+        avatarImg.alt = displayName;
+        avatarImg.loading = 'lazy';
+
+        const body = document.createElement('div');
+        body.className = 'msg-body';
+
+        const header = document.createElement('div');
+        header.className = 'msg-header';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'mname';
+        nameSpan.textContent = displayName;
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'mtime';
+        timeSpan.textContent = '(' + time + ')';
+        header.appendChild(nameSpan);
+        header.appendChild(timeSpan);
+
+        const bubble = document.createElement('div');
+        bubble.className = 'msg-bubble';
+        const content = document.createElement('div');
+        content.className = 'text-content';
+        content.textContent = msg._text || '[空消息]';
+        bubble.appendChild(content);
+
+        const actions = document.createElement('div');
+        actions.className = 'msg-actions';
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'msg-action-btn copy-btn';
+        copyBtn.textContent = '复制';
+        copyBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const text = msg._text || '';
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
+            } else {
+                fallbackCopy(text);
+            }
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'msg-action-btn delete-btn';
+        deleteBtn.textContent = '删除';
+        const idx = index;
+        deleteBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            confirmAction().then((ok) => {
+                if (ok) deleteMessage(idx);
+            }).catch(() => {});
+        });
+
+        actions.appendChild(copyBtn);
+        actions.appendChild(deleteBtn);
+
+        body.appendChild(header);
+        body.appendChild(bubble);
+        body.appendChild(actions);
+
+        row.appendChild(avatarImg);
+        row.appendChild(body);
+        item.appendChild(row);
+        return item;
+    }
+
+    function fallbackCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;opacity:0;';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+            showToast('✅ 已复制');
+        } catch (e) {
+            showToast('❌ 复制失败');
+        }
+        document.body.removeChild(ta);
+    }
+
+    function showToast(message) {
+        const existing = document.querySelector('.custom-toast');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.className = 'custom-toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                if (toast.parentNode) toast.remove();
+            }, 300);
+        }, 1800);
+    }
+
+    function formatBeijingTime(isoStr) {
+        if (!isoStr) return '未知时间';
+        try {
+            const date = new Date(isoStr);
+            if (isNaN(date.getTime())) return isoStr;
+            const beijing = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+            const y = beijing.getUTCFullYear();
+            const m = String(beijing.getUTCMonth() + 1).padStart(2, '0');
+            const d = String(beijing.getUTCDate()).padStart(2, '0');
+            const h = String(beijing.getUTCHours()).padStart(2, '0');
+            const min = String(beijing.getUTCMinutes()).padStart(2, '0');
+            return y + '-' + m + '-' + d + ' ' + h + ':' + min;
+        } catch (e) {
+            return isoStr;
+        }
+    }
+
+    // ===== 删除消息 =====
+    async function deleteMessage(index) {
+        if (index < 0 || index >= allMessages.length) return;
+        const msg = allMessages[index];
+        const msgId = msg.message_id;
+        try {
+            if (msgId) await deleteMessageFromDB(msgId);
+            allMessages.splice(index, 1);
+            updateUI();
+            showToast('🗑️ 已删除');
+        } catch (err) {
+            showToast('❌ 删除失败');
+        }
+    }
+
+    // ===== 搜索 =====
+    function performSearch(query) {
+        if (!query.trim()) {
+            searchDropdown.classList.remove('show');
+            return;
+        }
+        const q = query.trim().toLowerCase();
+        const matches = [];
+        for (let i = 0; i < allMessages.length; i++) {
+            const msg = allMessages[i];
+            if ((msg._text || '').toLowerCase().includes(q)) {
+                matches.push({ index: i, msg });
+                if (matches.length > 200) break;
+            }
+        }
+
+        if (matches.length === 0) {
+            searchDropdown.innerHTML = '<div class="sd-empty">没有找到匹配的消息</div>';
+            searchDropdown.classList.add('show');
+            return;
+        }
+
+        let html = '<div class="sd-header">共 ' + matches.length + ' 条结果</div>';
+        for (const match of matches) {
+            const msg = match.msg;
+            const isUser = msg._userType === 'user';
+            let name = isUser ? settings.userName : (settings.botName && settings.botName !== 'Bot' ?
+                settings.botName : (msg._botName || 'Bot'));
+            const time = formatBeijingTime(msg.create_time);
+            let preview = msg._text || '';
+            const idx = preview.toLowerCase().indexOf(q);
+            if (idx >= 0) {
+                preview = preview.substring(0, idx) + '<em>' + preview.substring(idx, idx + q.length) +
+                    '</em>' + preview.substring(idx + q.length);
+            }
+            if (preview.length > 80) preview = preview.substring(0, 80) + '...';
+
+            html += '<div class="sd-item" data-index="' + match.index + '">' +
+                '<div class="sd-top"><span class="sd-name">' + escapeHtml(name) + '</span>' +
+                '<span class="sd-time">' + escapeHtml(time) + '</span></div>' +
+                '<div class="sd-preview">' + preview + '</div></div>';
+        }
+        searchDropdown.innerHTML = html;
+        searchDropdown.classList.add('show');
+
+        searchDropdown.querySelectorAll('.sd-item').forEach(el => {
+            el.addEventListener('click', function() {
+                const idx = parseInt(this.dataset.index);
+                if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
+                    jumpToMessage(idx);
+                    searchDropdown.classList.remove('show');
+                    searchInput.value = '';
+                    searchClear.classList.remove('show');
+                }
+            });
+        });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function jumpToMessage(index) {
+        if (index < 0 || index >= allMessages.length) return;
+        const container = messagesContainer;
+        const itemH = getItemHeight();
+        container.scrollTo({ top: Math.max(0, index * itemH - container.clientHeight / 3), behavior: 'smooth' });
+        setTimeout(() => {
+            const items = container.querySelectorAll('.msg-item');
+            for (const item of items) {
+                item.classList.remove('highlighted');
+                if (item.dataset && parseInt(item.dataset.index) === index) {
+                    item.classList.add('highlighted');
+                    item.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
+            }
+        }, 400);
+    }
+
+    // ===== 导出MD =====
+    function exportMD() {
+        if (allMessages.length === 0) {
+            showToast('❌ 没有消息可导出');
+            return;
+        }
+        let md = '# 聊天记录导出\n\n';
+        let count = 0;
+        for (const msg of allMessages) {
+            const isUser = msg._userType === 'user';
+            let name = isUser ? settings.userName : (settings.botName && settings.botName !== 'Bot' ?
+                settings.botName : (msg._botName || 'Bot'));
+            md += name + ' (' + formatBeijingTime(msg.create_time) + '): ' + (msg._text || '') + '\n\n';
+            if (++count > 50000) { md += '... (消息过多，截断)'; break; }
+        }
+        const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'chat_export_' + new Date().toISOString().slice(0, 10) + '.md';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('✅ 导出完成');
+    }
+
+    // ===== 确认弹窗 =====
+    function confirmAction() {
+        return new Promise((resolve) => {
+            confirmOverlay.classList.add('open');
+            pendingConfirm = resolve;
+        });
+    }
+
+    confirmOk.addEventListener('click', function() {
+        confirmOverlay.classList.remove('open');
+        if (pendingConfirm) { pendingConfirm(true);
+            pendingConfirm = null; }
+    });
+    confirmCancel.addEventListener('click', function() {
+        confirmOverlay.classList.remove('open');
+        if (pendingConfirm) { pendingConfirm(false);
+            pendingConfirm = null; }
+    });
+    confirmOverlay.addEventListener('click', function(e) {
+        if (e.target === this) {
+            confirmOverlay.classList.remove('open');
+            if (pendingConfirm) { pendingConfirm(false);
+                pendingConfirm = null; }
+        }
+    });
+
+    // ===== UI更新 =====
+    function updateUI() {
+        const container = messagesContainer;
+        const total = allMessages.length;
+        if (total === 0) {
+            container.innerHTML =
+                '<div style="text-align:center;padding:50px 20px;color:#999;font-size:15px;">暂无消息</div>';
+            updateFooter();
+            return;
+        }
+        const itemH = getItemHeight();
+        const scrollTop = container.scrollTop || 0;
+        const start = Math.max(0, Math.floor(scrollTop / itemH) - 3);
+        const end = Math.min(total, Math.ceil((scrollTop + container.clientHeight) / itemH) + 3);
+        renderStart = start;
+        renderEnd = end;
+        renderMessages(container, start, end);
+        updateFooter();
+    }
+
+    function updateFooter() {
+        const total = allMessages.length;
+        msgCount.textContent = '总消息: ' + total.toLocaleString() + ' 条';
+        const sizeMB = (new Blob([JSON.stringify(allMessages)]).size / (1024 * 1024)).toFixed(1);
+        sDataSize.textContent = '数据大小: ' + sizeMB + ' MB';
+    }
+
+    function applySettings() {
+        const botName = settings.botName || 'Bot';
+        title.textContent = '💬 与 ' + botName + ' 的对话';
+
+        if (settings.bgImage) {
+            messagesContainer.style.backgroundImage = 'url(' + settings.bgImage + ')';
+        } else {
+            messagesContainer.style.backgroundImage = 'none';
+            messagesContainer.style.backgroundColor = 'var(--bg-color)';
+        }
+
+        sUserName.value = settings.userName || '我';
+        sBotName.value = settings.botName || 'Bot';
+        sUserAvatarPreview.src = settings.userAvatar || '';
+        sBotAvatarPreview.src = settings.botAvatar || '';
+        sBgPreview.src = settings.bgImage || '';
+
+        if (isDataLoaded && allMessages.length > 0) updateUI();
+    }
+
+    // ===== 数据加载 =====
+    async function loadDataFromDB() {
+        try {
+            const msgs = await loadAllMessagesFromDB();
+            if (msgs && msgs.length > 0) {
+                allMessages = msgs.sort((a, b) => (a.create_time || '').localeCompare(b.create_time || ''));
+                isDataLoaded = true;
+                showMessagesView();
+                updateUI();
+                return true;
+            }
+            return false;
+        } catch (err) {
+            return false;
+        }
+    }
+
+    async function loadSettings() {
+        try {
+            const saved = await loadSettingsFromDB();
+            Object.assign(settings, saved);
+            applySettings();
+        } catch (err) {}
+    }
+
+    function showMessagesView() {
+        uploadZone.style.display = 'none';
+        messagesContainer.style.display = 'block';
+        footer.style.display = 'flex';
+        progressWrap.classList.remove('show');
+        document.querySelector('#upload-zone .drop-area').style.display = 'block';
+    }
+
+    function showUploadView() {
+        uploadZone.style.display = 'flex';
+        messagesContainer.style.display = 'none';
+        footer.style.display = 'none';
+        progressWrap.classList.remove('show');
+        fileInput.value = '';
+        isDataLoaded = false;
+        document.querySelector('#upload-zone .drop-area').style.display = 'block';
+    }
+
+    // ===== 上传处理 =====
+    function handleFile(file) {
+        if (isParsing) return;
+        if (!file || !file.name.endsWith('.json')) {
+            showToast('❌ 请上传 JSON 文件');
+            return;
+        }
+
+        isParsing = true;
+        document.querySelector('#upload-zone .drop-area').style.display = 'none';
+        progressWrap.classList.add('show');
+        progressBar.style.width = '0%';
+        pstatus.textContent = '0%';
+        pname.textContent = file.name;
+        pdetail.textContent = '准备解析...';
+
+        parseJSONFileComplete(
+            file,
+            (progress) => {
+                progressBar.style.width = progress + '%';
+                pstatus.textContent = progress + '%';
+                pdetail.textContent = '解析中...';
+            },
+            async (messages, botName) => {
+                isParsing = false;
+                if (messages.length === 0) {
+                    showToast('❌ 未解析到任何消息');
+                    progressWrap.classList.remove('show');
+                    document.querySelector('#upload-zone .drop-area').style.display = 'block';
+                    return;
+                }
+
+                messages.sort((a, b) => (a.create_time || '').localeCompare(b.create_time || ''));
+                allMessages = messages;
+                if (botName && botName !== 'Bot') settings.botName = botName;
+
+                try {
+                    await clearAllMessagesDB();
+                    for (let i = 0; i < allMessages.length; i += 5000) {
+                        await saveMessagesToDB(allMessages.slice(i, i + 5000));
+                    }
+                    await saveSettingsToDB(settings);
+                    isDataLoaded = true;
+                    showMessagesView();
+                    applySettings();
+                    updateUI();
+                    pdetail.textContent = '✅ 完成！共 ' + allMessages.length.toLocaleString() + ' 条消息';
+                    pstatus.textContent = '✅ 完成';
+                    showToast('✅ 导入完成');
+                } catch (err) {
+                    showToast('❌ 保存失败');
+                }
+            },
+            (err) => {
+                isParsing = false;
+                showToast('❌ ' + err);
+                progressWrap.classList.remove('show');
+                document.querySelector('#upload-zone .drop-area').style.display = 'block';
+            }
+        );
+    }
+
+    // ===== 设置面板 =====
+    function openSettings() {
+        settingsOverlay.classList.add('open');
+        sUserName.value = settings.userName || '我';
+        sBotName.value = settings.botName || 'Bot';
+        sUserAvatarPreview.src = settings.userAvatar || '';
+        sBotAvatarPreview.src = settings.botAvatar || '';
+        sBgPreview.src = settings.bgImage || '';
+    }
+
+    function closeSettings() {
+        settingsOverlay.classList.remove('open');
+    }
+
+    function imageToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(e.target.error);
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // ===== 事件绑定 =====
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) handleFile(this.files[0]);
+        this.value = '';
+    });
+
+    dropArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('dragover');
+    });
+    dropArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+    });
+    dropArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+    dropArea.addEventListener('click', function(e) {
+        if (e.target === this || e.target.tagName === 'P') fileInput.click();
+    });
+
+    let searchTimer = null;
+    searchInput.addEventListener('input', function() {
+        const val = this.value;
+        if (val.trim()) {
+            searchClear.classList.add('show');
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => performSearch(val), 200);
+        } else {
+            searchClear.classList.remove('show');
+            searchDropdown.classList.remove('show');
+        }
+    });
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            this.value = '';
+            searchClear.classList.remove('show');
+            searchDropdown.classList.remove('show');
+            this.blur();
+        }
+        if (e.key === 'Enter') {
+            const first = searchDropdown.querySelector('.sd-item');
+            if (first) first.click();
+        }
+    });
+    searchClear.addEventListener('click', function() {
+        searchInput.value = '';
+        this.classList.remove('show');
+        searchDropdown.classList.remove('show');
+        searchInput.focus();
+    });
+    document.addEventListener('click', function(e) {
+        const wrap = document.getElementById('search-wrap');
+        if (!wrap.contains(e.target)) searchDropdown.classList.remove('show');
+    });
+
+    settingsBtn.addEventListener('click', openSettings);
+    settingsClose.addEventListener('click', closeSettings);
+    settingsOverlay.addEventListener('click', function(e) {
+        if (e.target === this) closeSettings();
+    });
+
+    sSave.addEventListener('click', async function() {
+        settings.userName = sUserName.value.trim() || '我';
+        settings.botName = sBotName.value.trim() || 'Bot';
+        try {
+            await saveSettingsToDB(settings);
+            title.textContent = '💬 与 ' + settings.botName + ' 的对话';
+            if (isDataLoaded && allMessages.length > 0) updateUI();
+            closeSettings();
+            showToast('✅ 设置已保存');
+        } catch (err) {
+            showToast('❌ 保存失败');
+        }
+    });
+
+    sUserAvatarInput.addEventListener('change', async function() {
+        if (this.files && this.files[0]) {
+            try {
+                settings.userAvatar = await imageToBase64(this.files[0]);
+                sUserAvatarPreview.src = settings.userAvatar;
+            } catch (err) { showToast('❌ 图片读取失败'); }
+        }
+        this.value = '';
+    });
+    sBotAvatarInput.addEventListener('change', async function() {
+        if (this.files && this.files[0]) {
+            try {
+                settings.botAvatar = await imageToBase64(this.files[0]);
+                sBotAvatarPreview.src = settings.botAvatar;
+            } catch (err) { showToast('❌ 图片读取失败'); }
+        }
+        this.value = '';
+    });
+    sBgInput.addEventListener('change', async function() {
+        if (this.files && this.files[0]) {
+            try {
+                settings.bgImage = await imageToBase64(this.files[0]);
+                sBgPreview.src = settings.bgImage;
+                messagesContainer.style.backgroundImage = 'url(' + settings.bgImage + ')';
+            } catch (err) { showToast('❌ 图片读取失败'); }
+        }
+        this.value = '';
+    });
+
+    document.querySelectorAll('.reset-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const target = this.dataset.target;
+            if (target === 'user-avatar') {
+                settings.userAvatar = '';
+                sUserAvatarPreview.src = '';
+            } else if (target === 'bot-avatar') {
+                settings.botAvatar = '';
+                sBotAvatarPreview.src = '';
+            } else if (target === 'bg') {
+                settings.bgImage = '';
+                sBgPreview.src = '';
+                messagesContainer.style.backgroundImage = 'none';
+                messagesContainer.style.backgroundColor = 'var(--bg-color)';
+            }
+        });
+    });
+
+    sUploadJson.addEventListener('click', function() { closeSettings();
+        fileInput.click(); });
+    sExportMd.addEventListener('click', exportMD);
+    sClearData.addEventListener('click', function() {
+        confirmOverlay.classList.add('open');
+        confirmTitle.textContent = '⚠️ 清空所有数据';
+        confirmDesc.textContent = '确定要清空所有聊天记录和设置吗？此操作不可恢复！';
+        const okHandler = async function() {
+            confirmOverlay.classList.remove('open');
+            confirmOk.removeEventListener('click', okHandler);
+            try {
+                await clearAllMessagesDB();
+                const db = await getDB();
+                const tx = db.transaction(SETTINGS_STORE, 'readwrite');
+                const store = tx.objectStore(SETTINGS_STORE);
+                for (const key of ['userName', 'botName', 'userAvatar', 'botAvatar', 'bgImage']) {
+                    store.delete(key);
+                }
+                await new Promise((resolve, reject) => {
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                });
+                allMessages = [];
+                isDataLoaded = false;
+                settings = { userName: '我', botName: 'Bot', userAvatar: '', botAvatar: '', bgImage: '' };
+                applySettings();
+                showUploadView();
+                showToast('🗑️ 已清空所有数据');
+            } catch (err) {
+                showToast('❌ 清空失败');
+            }
+        };
+        confirmOk.addEventListener('click', okHandler);
+        const cancelHandler = function() {
+            confirmOverlay.classList.remove('open');
+            confirmOk.removeEventListener('click', okHandler);
+            confirmCancel.removeEventListener('click', cancelHandler);
+        };
+        confirmCancel.addEventListener('click', cancelHandler);
+    });
+
+    // ===== 滚动事件 =====
+    messagesContainer.addEventListener('scroll', function() {
+        if (!isDataLoaded || allMessages.length === 0 || isScrolling) return;
+        isScrolling = true;
+        requestAnimationFrame(() => {
+            try {
+                const itemH = getItemHeight();
+                const total = allMessages.length;
+                const scrollTop = this.scrollTop;
+                const clientHeight = this.clientHeight;
+                const start = Math.max(0, Math.floor(scrollTop / itemH) - 2);
+                const end = Math.min(total, Math.ceil((scrollTop + clientHeight) / itemH) + 2);
+
+                if (start !== renderStart || end !== renderEnd) {
+                    renderStart = start;
+                    renderEnd = end;
+                    renderMessages(this, start, end);
+                } else {
+                    const wrapper = this.querySelector('div:first-child');
+                    if (wrapper) {
+                        wrapper.style.paddingTop = Math.max(0, start * itemH) + 'px';
+                        wrapper.style.paddingBottom = Math.max(0, (total - end) * itemH) + 'px';
+                    }
+                }
+            } catch (e) {}
+            isScrolling = false;
+        });
+    });
+
+    let resizeTimeout = null;
+    window.addEventListener('resize', function() {
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+            if (isDataLoaded && allMessages.length > 0) updateUI();
+        }, 300);
+    });
+
+    // ===== 初始化 =====
+    async function init() {
+        await loadSettings();
+        const hasData = await loadDataFromDB();
+        if (!hasData) {
+            showUploadView();
+        } else {
+            showMessagesView();
+            updateUI();
+            setTimeout(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; }, 100);
+        }
+    }
+
+    init();
+
+})();
