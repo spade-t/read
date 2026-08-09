@@ -61,7 +61,7 @@
     };
     let pendingConfirm = null;
 
-    // 虚拟滚动状态 - 动态高度
+    // 虚拟滚动状态
     let scrollViewport = null;
     const BUFFER_SIZE = 5;
     let visibleStart = 0;
@@ -70,11 +70,6 @@
     let itemHeights = [];
     let itemOffsets = [];
     let totalHeight = 0;
-
-    // 搜索状态
-    let searchResults = [];
-    let searchDisplayCount = 50;
-    const SEARCH_BATCH_SIZE = 50;
 
     // ===== 工具函数 =====
 
@@ -418,7 +413,7 @@
         return `<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
     }
 
-    // ===== 动态高度虚拟滚动 =====
+    // ===== 虚拟滚动 =====
 
     function estimateItemHeight(msg) {
         const text = msg._text || '';
@@ -535,7 +530,6 @@
         content.textContent = msg._text || '[空消息]';
         bubble.appendChild(content);
 
-        // ===== 操作按钮 - SVG 图标 =====
         const actions = document.createElement('div');
         actions.className = 'msg-actions';
 
@@ -735,28 +729,38 @@
         }
     }
 
-    // ===== 搜索 =====
+    // ===== 搜索功能 =====
+
+    // 搜索匹配结果缓存
+    let searchMatchCache = [];
+
     function performSearch(query) {
         if (!query.trim()) {
             searchDropdown.classList.remove('show');
-            searchResults = [];
-            searchDisplayCount = SEARCH_BATCH_SIZE;
+            searchMatchCache = [];
             return;
         }
+
         const q = query.trim().toLowerCase();
-        searchResults = [];
+        searchMatchCache = [];
+
         for (let i = 0; i < allMessages.length; i++) {
             const msg = allMessages[i];
-            if ((msg._text || '').toLowerCase().includes(q)) {
-                searchResults.push({ index: i, msg });
-                if (searchResults.length > 2000) break;
+            const text = (msg._text || '').toLowerCase();
+            if (text.includes(q)) {
+                searchMatchCache.push({
+                    index: i,
+                    msg: msg,
+                    keyword: q
+                });
+                if (searchMatchCache.length > 2000) break;
             }
         }
-        searchDisplayCount = SEARCH_BATCH_SIZE;
+
         renderSearchResults();
     }
 
-    // ===== 微信风格搜索预览 =====
+    // ===== 生成搜索预览 =====
     function generateSearchPreview(fullText, keyword) {
         if (!fullText) return '';
         if (!keyword) return escapeHtml(fullText);
@@ -765,7 +769,6 @@
         const lowerKeyword = keyword.toLowerCase();
         const keywordIndex = lowerText.indexOf(lowerKeyword);
 
-        // 如果没找到关键词，返回原文
         if (keywordIndex === -1) {
             return escapeHtml(fullText);
         }
@@ -773,7 +776,7 @@
         const kwLen = keyword.length;
         const textLen = fullText.length;
 
-        // ----- 短文本：完整显示，直接高亮 -----
+        // 短文本：完整显示
         if (textLen <= 60) {
             const before = escapeHtml(fullText.substring(0, keywordIndex));
             const hit = escapeHtml(fullText.substring(keywordIndex, keywordIndex + kwLen));
@@ -781,7 +784,7 @@
             return before + '<em>' + hit + '</em>' + after;
         }
 
-        // ----- 长文本：截断显示，确保关键词可见 -----
+        // 长文本：截断显示
         const BEFORE_MAX = 30;
         const AFTER_MAX = 40;
 
@@ -802,30 +805,36 @@
         return (hasPrefix ? '...' : '') + beforeHit + '<em>' + hitText + '</em>' + afterHit + (hasSuffix ? '...' : '');
     }
 
+    // ===== 渲染搜索结果 =====
+    let searchDisplayCount = 50;
+    const SEARCH_BATCH_SIZE = 50;
+
     function renderSearchResults() {
-        if (searchResults.length === 0) {
+        const total = searchMatchCache.length;
+
+        if (total === 0) {
             searchDropdown.innerHTML = '<div class="sd-empty">没有找到匹配的消息</div>';
             searchDropdown.classList.add('show');
             return;
         }
 
-        const total = searchResults.length;
         const displayTotal = Math.min(searchDisplayCount, total);
         const hasMore = displayTotal < total;
-        const q = searchInput.value.trim().toLowerCase();
 
         let html = '<div class="sd-header">共 ' + total + ' 条结果</div>';
 
         for (let i = 0; i < displayTotal; i++) {
-            const match = searchResults[i];
+            const match = searchMatchCache[i];
             const msg = match.msg;
+            const keyword = match.keyword;
+
             const isUser = msg._userType === 'user';
             let name = isUser ? settings.userName : (settings.botName && settings.botName !== 'Bot' ?
                 settings.botName : (msg._botName || 'Bot'));
             const time = formatBeijingTime(msg.create_time);
             const fullText = msg._text || '';
 
-            const preview = generateSearchPreview(fullText, q);
+            const preview = generateSearchPreview(fullText, keyword);
 
             html += '<div class="sd-item" data-index="' + match.index + '">' +
                 '<div class="sd-top"><span class="sd-name">' + escapeHtml(name) + '</span>' +
@@ -841,6 +850,7 @@
         searchDropdown.innerHTML = html;
         searchDropdown.classList.add('show');
 
+        // 绑定点击事件
         searchDropdown.querySelectorAll('.sd-item').forEach(el => {
             el.addEventListener('click', function() {
                 const idx = parseInt(this.dataset.index);
@@ -849,7 +859,7 @@
                     searchDropdown.classList.remove('show');
                     searchInput.value = '';
                     searchClear.classList.remove('show');
-                    searchResults = [];
+                    searchMatchCache = [];
                     searchDisplayCount = SEARCH_BATCH_SIZE;
                 }
             });
@@ -1100,16 +1110,17 @@
         } else {
             searchClear.classList.remove('show');
             searchDropdown.classList.remove('show');
-            searchResults = [];
+            searchMatchCache = [];
             searchDisplayCount = SEARCH_BATCH_SIZE;
         }
     });
+
     searchInput.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             searchInput.value = '';
             searchClear.classList.remove('show');
             searchDropdown.classList.remove('show');
-            searchResults = [];
+            searchMatchCache = [];
             searchDisplayCount = SEARCH_BATCH_SIZE;
             searchInput.blur();
         }
@@ -1118,14 +1129,16 @@
             if (first) first.click();
         }
     });
+
     searchClear.addEventListener('click', function() {
         searchInput.value = '';
         this.classList.remove('show');
         searchDropdown.classList.remove('show');
-        searchResults = [];
+        searchMatchCache = [];
         searchDisplayCount = SEARCH_BATCH_SIZE;
         searchInput.focus();
     });
+
     document.addEventListener('click', function(e) {
         const wrap = document.getElementById('search-wrap');
         if (!wrap.contains(e.target)) {
@@ -1164,6 +1177,7 @@
         }
         this.value = '';
     });
+
     sBotAvatarInput.addEventListener('change', async function() {
         if (this.files && this.files[0]) {
             try {
@@ -1173,6 +1187,7 @@
         }
         this.value = '';
     });
+
     sBgInput.addEventListener('change', async function() {
         if (this.files && this.files[0]) {
             try {
@@ -1187,6 +1202,7 @@
     sUploadJson.addEventListener('click', function() { closeSettings();
         fileInput.click(); });
     sExportMd.addEventListener('click', exportMD);
+
     sClearData.addEventListener('click', function() {
         confirmOverlay.classList.add('open');
         confirmTitle.textContent = '⚠️ 清空所有数据';
