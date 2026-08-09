@@ -60,17 +60,22 @@
         bgImage: ''
     };
     let pendingConfirm = null;
-    let renderStart = 0;
-    let renderEnd = 0;
-    let isScrolling = false;
-    let scrollRAF = null;
+
+    // 虚拟滚动 - 固定节点池
+    const BUFFER_SIZE = 5; // 上下各多渲染的条数
+    let visibleStart = 0;
+    let visibleEnd = 0;
+    let itemHeight = 0;
+    let totalHeight = 0;
+    let scrollViewport = null;
+    let renderCache = {}; // 缓存已创建的DOM节点
 
     // 搜索状态
     let searchResults = [];
     let searchDisplayCount = 50;
     const SEARCH_BATCH_SIZE = 50;
 
-    // 保存滚动位置
+    // 滚动位置保存
     let savedScrollTop = 0;
 
     // ===== 消息文本提取 =====
@@ -334,36 +339,11 @@
         reader.readAsText(file);
     }
 
-    // ===== 渲染 =====
+    // ===== 虚拟滚动 - 核心渲染引擎 =====
     function getItemHeight() {
         if (window.innerWidth <= 400) return 90;
         if (window.innerWidth <= 600) return 100;
         return 110;
-    }
-
-    function renderMessages(container, start, end) {
-        const total = allMessages.length;
-        if (total === 0) {
-            container.innerHTML =
-                '<div style="text-align:center;padding:60px 20px;color:#999;font-size:16px;">暂无消息</div>';
-            return;
-        }
-        const itemH = getItemHeight();
-
-        // 使用 DocumentFragment 批量构建
-        const fragment = document.createDocumentFragment();
-        const wrapper = document.createElement('div');
-        wrapper.style.paddingTop = Math.max(0, start * itemH) + 'px';
-        wrapper.style.paddingBottom = Math.max(0, (total - end) * itemH) + 'px';
-
-        const actualEnd = Math.min(end, total);
-        for (let i = start; i < actualEnd; i++) {
-            wrapper.appendChild(createMessageElement(allMessages[i], i));
-        }
-
-        fragment.appendChild(wrapper);
-        container.innerHTML = '';
-        container.appendChild(fragment);
     }
 
     function createMessageElement(msg, index) {
@@ -380,6 +360,11 @@
         const item = document.createElement('div');
         item.className = 'msg-item';
         item.dataset.index = index;
+        item.style.position = 'absolute';
+        item.style.left = '0';
+        item.style.right = '0';
+        item.style.top = (index * itemHeight) + 'px';
+        item.style.height = itemHeight + 'px';
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -452,6 +437,121 @@
         return item;
     }
 
+    // 构建或更新视图
+    function buildViewport() {
+        if (!scrollViewport) {
+            scrollViewport = document.createElement('div');
+            scrollViewport.id = 'scroll-viewport';
+            scrollViewport.style.position = 'relative';
+            scrollViewport.style.width = '100%';
+            scrollViewport.style.minHeight = '100%';
+            messagesContainer.appendChild(scrollViewport);
+        }
+    }
+
+    function updateScrollView() {
+        const total = allMessages.length;
+        if (total === 0) {
+            if (scrollViewport) {
+                scrollViewport.innerHTML =
+                    '<div style="text-align:center;padding:60px 20px;color:#999;font-size:16px;position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);">暂无消息</div>';
+            }
+            return;
+        }
+
+        itemHeight = getItemHeight();
+        totalHeight = total * itemHeight;
+
+        buildViewport();
+
+        // 更新总高度
+        scrollViewport.style.height = totalHeight + 'px';
+
+        const containerHeight = messagesContainer.clientHeight || 600;
+        const scrollTop = messagesContainer.scrollTop;
+
+        // 计算可见范围
+        const start = Math.max(0, Math.floor(scrollTop / itemHeight) - BUFFER_SIZE);
+        const end = Math.min(total, Math.ceil((scrollTop + containerHeight) / itemHeight) + BUFFER_SIZE);
+
+        // 如果范围没变，只更新位置
+        if (start === visibleStart && end === visibleEnd) {
+            // 但需要确保位置正确（滚动时只移动位置，不重建）
+            return;
+        }
+
+        visibleStart = start;
+        visibleEnd = end;
+
+        // 获取当前所有子节点
+        const children = scrollViewport.children;
+        const childMap = {};
+        for (let i = 0; i < children.length; i++) {
+            const child = children[i];
+            if (child.dataset && child.dataset.index !== undefined) {
+                childMap[child.dataset.index] = child;
+            }
+        }
+
+        // 构建需要显示的索引集合
+        const needed = new Set();
+        for (let i = start; i < end; i++) {
+            needed.add(i);
+        }
+
+        // 移除不在范围内的节点
+        const toRemove = [];
+        for (const idx in childMap) {
+            if (!needed.has(parseInt(idx))) {
+                toRemove.push(childMap[idx]);
+            }
+        }
+        for (const el of toRemove) {
+            if (el.parentNode) el.parentNode.removeChild(el);
+            delete childMap[el.dataset.index];
+        }
+
+        // 添加缺失的节点
+        const fragment = document.createDocumentFragment();
+        for (let i = start; i < end; i++) {
+            if (!childMap[i]) {
+                const el = createMessageElement(allMessages[i], i);
+                fragment.appendChild(el);
+                childMap[i] = el;
+            }
+        }
+        if (fragment.children.length > 0) {
+            scrollViewport.appendChild(fragment);
+        }
+
+        // 更新所有节点的位置（确保位置正确）
+        for (const idx in childMap) {
+            const el = childMap[idx];
+            const index = parseInt(idx);
+            el.style.top = (index * itemHeight) + 'px';
+            el.style.height = itemHeight + 'px';
+            el.dataset.index = index;
+        }
+    }
+
+    // 全量重建
+    function fullRebuild() {
+        if (!scrollViewport) {
+            buildViewport();
+        }
+        scrollViewport.innerHTML = '';
+        visibleStart = -1;
+        visibleEnd = -1;
+        renderCache = {};
+        if (allMessages.length > 0) {
+            updateScrollView();
+        } else {
+            scrollViewport.innerHTML =
+                '<div style="text-align:center;padding:60px 20px;color:#999;font-size:16px;position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);">暂无消息</div>';
+        }
+        updateFooter();
+    }
+
     function fallbackCopy(text) {
         const ta = document.createElement('textarea');
         ta.value = text;
@@ -516,7 +616,7 @@
         try {
             if (msgId) await deleteMessageFromDB(msgId);
             allMessages.splice(index, 1);
-            updateUI();
+            fullRebuild();
             showToast('🗑️ 已删除');
         } catch (err) {
             showToast('❌ 删除失败');
@@ -587,7 +687,6 @@
         searchDropdown.innerHTML = html;
         searchDropdown.classList.add('show');
 
-        // 绑定点击事件
         searchDropdown.querySelectorAll('.sd-item').forEach(el => {
             el.addEventListener('click', function() {
                 const idx = parseInt(this.dataset.index);
@@ -620,29 +719,30 @@
 
     function jumpToMessage(index) {
         if (index < 0 || index >= allMessages.length) return;
-        const container = messagesContainer;
-        const itemH = getItemHeight();
-        const targetScroll = Math.max(0, index * itemH - container.clientHeight / 3);
-        container.scrollTo({ top: targetScroll, behavior: 'smooth' });
+        const targetScroll = Math.max(0, index * itemHeight - messagesContainer.clientHeight / 3);
+        messagesContainer.scrollTo({ top: targetScroll, behavior: 'smooth' });
 
         // 清除之前的高亮
-        const items = container.querySelectorAll('.msg-item');
-        for (const item of items) {
-            item.classList.remove('highlighted');
+        if (scrollViewport) {
+            const items = scrollViewport.querySelectorAll('.msg-item');
+            for (const item of items) {
+                item.classList.remove('highlighted');
+            }
         }
 
         // 高亮目标消息
         setTimeout(() => {
-            const items2 = container.querySelectorAll('.msg-item');
-            for (const item of items2) {
-                if (item.dataset && parseInt(item.dataset.index) === index) {
-                    item.classList.add('highlighted');
-                    item.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                    // 3秒后移除高亮
-                    setTimeout(() => {
-                        item.classList.remove('highlighted');
-                    }, 3000);
-                    break;
+            if (scrollViewport) {
+                const items2 = scrollViewport.querySelectorAll('.msg-item');
+                for (const item of items2) {
+                    if (item.dataset && parseInt(item.dataset.index) === index) {
+                        item.classList.add('highlighted');
+                        // 3秒后移除高亮
+                        setTimeout(() => {
+                            item.classList.remove('highlighted');
+                        }, 3000);
+                        break;
+                    }
                 }
             }
         }, 400);
@@ -703,21 +803,7 @@
 
     // ===== UI更新 =====
     function updateUI() {
-        const container = messagesContainer;
-        const total = allMessages.length;
-        if (total === 0) {
-            container.innerHTML =
-                '<div style="text-align:center;padding:60px 20px;color:#999;font-size:16px;">暂无消息</div>';
-            updateFooter();
-            return;
-        }
-        const itemH = getItemHeight();
-        const scrollTop = container.scrollTop || 0;
-        const start = Math.max(0, Math.floor(scrollTop / itemH) - 3);
-        const end = Math.min(total, Math.ceil((scrollTop + container.clientHeight) / itemH) + 3);
-        renderStart = start;
-        renderEnd = end;
-        renderMessages(container, start, end);
+        fullRebuild();
         updateFooter();
     }
 
@@ -745,7 +831,10 @@
         sBotAvatarPreview.src = settings.botAvatar || '';
         sBgPreview.src = settings.bgImage || '';
 
-        if (isDataLoaded && allMessages.length > 0) updateUI();
+        if (isDataLoaded && allMessages.length > 0) {
+            // 重建视图以更新头像和名称
+            fullRebuild();
+        }
     }
 
     // ===== 数据加载 =====
@@ -756,6 +845,8 @@
                 allMessages = msgs.sort((a, b) => (a.create_time || '').localeCompare(b.create_time || ''));
                 isDataLoaded = true;
                 showMessagesView();
+                // 构建viewport
+                buildViewport();
                 updateUI();
                 // 恢复滚动位置
                 loadScrollPosition();
@@ -792,6 +883,9 @@
         progressWrap.classList.remove('show');
         fileInput.value = '';
         isDataLoaded = false;
+        if (scrollViewport) {
+            scrollViewport.innerHTML = '';
+        }
     }
 
     // ===== 上传处理 =====
@@ -837,11 +931,11 @@
                     isDataLoaded = true;
                     showMessagesView();
                     applySettings();
+                    buildViewport();
                     updateUI();
                     pdetail.textContent = '✅ 完成！共 ' + allMessages.length.toLocaleString() + ' 条消息';
                     pstatus.textContent = '✅ 完成';
                     showToast('✅ 导入完成');
-                    // 滚动到底部
                     setTimeout(() => {
                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     }, 100);
@@ -948,7 +1042,9 @@
         try {
             await saveSettingsToDB(settings);
             title.textContent = '与 ' + settings.botName + ' 的对话';
-            if (isDataLoaded && allMessages.length > 0) updateUI();
+            if (isDataLoaded && allMessages.length > 0) {
+                fullRebuild();
+            }
             closeSettings();
             showToast('✅ 设置已保存');
         } catch (err) {
@@ -1027,43 +1123,72 @@
         confirmCancel.addEventListener('click', cancelHandler);
     });
 
-    // ===== 滚动事件 - 优化流畅度 =====
+    // ===== 滚动事件 - 极致流畅 =====
+    let scrollFrameId = null;
+
     messagesContainer.addEventListener('scroll', function() {
         if (!isDataLoaded || allMessages.length === 0) return;
 
-        // 保存滚动位置
         saveScrollPosition();
 
-        if (isScrolling) return;
-        isScrolling = true;
+        if (scrollFrameId) {
+            cancelAnimationFrame(scrollFrameId);
+        }
 
-        if (scrollRAF) cancelAnimationFrame(scrollRAF);
-        scrollRAF = requestAnimationFrame(() => {
-            try {
-                const itemH = getItemHeight();
+        scrollFrameId = requestAnimationFrame(() => {
+            scrollFrameId = null;
+            // 只更新位置，不重建DOM
+            if (scrollViewport) {
+                const scrollTop = messagesContainer.scrollTop;
+                const containerHeight = messagesContainer.clientHeight || 600;
                 const total = allMessages.length;
-                const scrollTop = this.scrollTop;
-                const clientHeight = this.clientHeight;
 
-                const start = Math.max(0, Math.floor(scrollTop / itemH) - 2);
-                const end = Math.min(total, Math.ceil((scrollTop + clientHeight) / itemH) + 2);
+                const start = Math.max(0, Math.floor(scrollTop / itemHeight) - BUFFER_SIZE);
+                const end = Math.min(total, Math.ceil((scrollTop + containerHeight) / itemHeight) + BUFFER_SIZE);
 
-                // 只有在变化较大时才重新渲染
-                if (Math.abs(start - renderStart) > 3 || Math.abs(end - renderEnd) > 3) {
-                    renderStart = start;
-                    renderEnd = end;
-                    renderMessages(this, start, end);
-                } else {
-                    // 只更新padding
-                    const wrapper = this.querySelector('div:first-child');
-                    if (wrapper) {
-                        wrapper.style.paddingTop = Math.max(0, start * itemH) + 'px';
-                        wrapper.style.paddingBottom = Math.max(0, (total - end) * itemH) + 'px';
+                // 如果范围变化较大，才更新
+                if (Math.abs(start - visibleStart) > 2 || Math.abs(end - visibleEnd) > 2) {
+                    visibleStart = start;
+                    visibleEnd = end;
+
+                    // 快速更新：只调整显示/隐藏
+                    const children = scrollViewport.children;
+                    const childMap = {};
+                    for (let i = 0; i < children.length; i++) {
+                        const child = children[i];
+                        if (child.dataset && child.dataset.index !== undefined) {
+                            childMap[child.dataset.index] = child;
+                        }
+                    }
+
+                    const needed = new Set();
+                    for (let i = start; i < end; i++) {
+                        needed.add(i);
+                    }
+
+                    // 隐藏不需要的
+                    for (const idx in childMap) {
+                        if (!needed.has(parseInt(idx))) {
+                            childMap[idx].style.display = 'none';
+                        } else {
+                            childMap[idx].style.display = '';
+                        }
+                    }
+
+                    // 添加缺失的
+                    const fragment = document.createDocumentFragment();
+                    for (let i = start; i < end; i++) {
+                        if (!childMap[i]) {
+                            const el = createMessageElement(allMessages[i], i);
+                            fragment.appendChild(el);
+                            childMap[i] = el;
+                        }
+                    }
+                    if (fragment.children.length > 0) {
+                        scrollViewport.appendChild(fragment);
                     }
                 }
-            } catch (e) {}
-            isScrolling = false;
-            scrollRAF = null;
+            }
         });
     });
 
@@ -1071,7 +1196,10 @@
     window.addEventListener('resize', function() {
         if (resizeTimeout) clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
-            if (isDataLoaded && allMessages.length > 0) updateUI();
+            if (isDataLoaded && allMessages.length > 0) {
+                // 重建以适应新高度
+                fullRebuild();
+            }
         }, 300);
     });
 
@@ -1088,8 +1216,8 @@
             showUploadView();
         } else {
             showMessagesView();
+            buildViewport();
             updateUI();
-            // 恢复滚动位置
             loadScrollPosition();
             setTimeout(() => {
                 messagesContainer.scrollTop = savedScrollTop;
