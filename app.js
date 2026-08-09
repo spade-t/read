@@ -756,133 +756,147 @@
         renderSearchResults();
     }
 
-    function renderSearchResults() {
-    if (searchResults.length === 0) {
-        searchDropdown.innerHTML = '<div class="sd-empty">没有找到匹配的消息</div>';
-        searchDropdown.classList.add('show');
-        return;
-    }
+    // ===== 生成搜索预览（带高亮和截断） =====
+    function generateSearchPreview(fullText, keyword, maxLength) {
+        if (!fullText) return '';
+        if (!keyword) return escapeHtml(fullText);
 
-    const total = searchResults.length;
-    const displayTotal = Math.min(searchDisplayCount, total);
-    const hasMore = displayTotal < total;
-    const q = searchInput.value.trim().toLowerCase();
+        const lowerText = fullText.toLowerCase();
+        const lowerKeyword = keyword.toLowerCase();
+        const keywordIndex = lowerText.indexOf(lowerKeyword);
 
-    let html = '<div class="sd-header">共 ' + total + ' 条结果</div>';
-
-    for (let i = 0; i < displayTotal; i++) {
-        const match = searchResults[i];
-        const msg = match.msg;
-        const isUser = msg._userType === 'user';
-        let name = isUser ? settings.userName : (settings.botName && settings.botName !== 'Bot' ?
-            settings.botName : (msg._botName || 'Bot'));
-        const time = formatBeijingTime(msg.create_time);
-        let fullText = msg._text || '';
-        
-        // 找到关键词位置
-        const keywordIndex = fullText.toLowerCase().indexOf(q);
-        let preview = fullText;
-        
-        if (keywordIndex >= 0) {
-            const keywordLength = q.length;
-            const textLength = fullText.length;
-            
-            // 如果文本太长，截取关键词前后部分
-            if (textLength > 80) {
-                let start = keywordIndex;
-                let end = keywordIndex + keywordLength;
-                
-                // 前面保留最多30个字符，用...代替
-                if (start > 30) {
-                    start = start - 30;
-                    // 调整到单词边界（中文直接截断）
-                    preview = '...' + fullText.substring(start, end);
-                } else {
-                    preview = fullText.substring(0, end);
-                }
-                
-                // 后面保留最多40个字符
-                if (end + 40 < textLength) {
-                    preview = preview.substring(0, end - (start > 30 ? start : 0) + 40) + '...';
-                }
-                
-                // 重新计算预览中的关键词位置，添加高亮
-                const previewKeywordStart = keywordIndex - (start > 30 ? start : 0);
-                const previewKeywordEnd = previewKeywordStart + keywordLength;
-                
-                // 但预览中可能已经包含了'...'，需要正确计算位置
-                const prefixDots = start > 30 ? '...' : '';
-                const actualStart = start > 30 ? start : 0;
-                const adjustedStart = keywordIndex - actualStart + (start > 30 ? 3 : 0);
-                const adjustedEnd = adjustedStart + keywordLength;
-                
-                // 重新构建带高亮的预览
-                const before = preview.substring(0, adjustedStart);
-                const hit = preview.substring(adjustedStart, adjustedEnd);
-                const after = preview.substring(adjustedEnd);
-                // 清理可能的多余高亮
-                preview = before + '<em>' + hit + '</em>' + after;
-                
-                // 如果前面有...，确保...不在高亮内部
-                if (start > 30 && preview.indexOf('...<em>') === 0) {
-                    preview = '...<em>' + fullText.substring(start, start + 30) + '</em>' + 
-                              fullText.substring(start + 30, start + 30 + 40) + '...';
-                }
-            } else {
-                // 文本较短，直接高亮
-                const before = fullText.substring(0, keywordIndex);
-                const hit = fullText.substring(keywordIndex, keywordIndex + keywordLength);
-                const after = fullText.substring(keywordIndex + keywordLength);
-                preview = before + '<em>' + hit + '</em>' + after;
+        // 如果没找到关键词，直接返回截断文本
+        if (keywordIndex === -1) {
+            if (fullText.length > maxLength) {
+                return escapeHtml(fullText.substring(0, maxLength)) + '...';
             }
-        } else {
-            // 理论上不会发生，但以防万一
-            if (fullText.length > 80) {
-                preview = fullText.substring(0, 80) + '...';
-            }
+            return escapeHtml(fullText);
         }
 
-        html += '<div class="sd-item" data-index="' + match.index + '">' +
-            '<div class="sd-top"><span class="sd-name">' + escapeHtml(name) + '</span>' +
-            '<span class="sd-time">' + escapeHtml(time) + '</span></div>' +
-            '<div class="sd-preview">' + preview + '</div></div>';
+        const kwLen = keyword.length;
+        const textLen = fullText.length;
+
+        // 如果文本本身不长，直接高亮显示
+        if (textLen <= maxLength) {
+            const before = escapeHtml(fullText.substring(0, keywordIndex));
+            const hit = escapeHtml(fullText.substring(keywordIndex, keywordIndex + kwLen));
+            const after = escapeHtml(fullText.substring(keywordIndex + kwLen));
+            return before + '<em>' + hit + '</em>' + after;
+        }
+
+        // 长文本：截取关键词前后部分
+        const contextBefore = 20; // 关键词前面保留的字符数
+        const contextAfter = 30; // 关键词后面保留的字符数
+
+        let start = Math.max(0, keywordIndex - contextBefore);
+        let end = Math.min(textLen, keywordIndex + kwLen + contextAfter);
+
+        // 调整start到合适位置，避免截断在中间
+        let prefixDots = '';
+        if (start > 0) {
+            // 尽量从单词/字符边界开始
+            prefixDots = '...';
+        }
+
+        let suffixDots = '';
+        if (end < textLen) {
+            suffixDots = '...';
+        }
+
+        // 提取片段
+        let snippet = fullText.substring(start, end);
+
+        // 计算关键词在片段中的位置
+        const snippetKeywordStart = keywordIndex - start;
+        const snippetKeywordEnd = snippetKeywordStart + kwLen;
+
+        // 构建带高亮的预览
+        let result = '';
+        if (prefixDots) {
+            result += prefixDots;
+        }
+
+        // 对片段进行转义和高亮
+        const beforeHit = escapeHtml(snippet.substring(0, snippetKeywordStart));
+        const hitText = escapeHtml(snippet.substring(snippetKeywordStart, snippetKeywordEnd));
+        const afterHit = escapeHtml(snippet.substring(snippetKeywordEnd));
+
+        result += beforeHit + '<em>' + hitText + '</em>' + afterHit;
+
+        if (suffixDots) {
+            result += suffixDots;
+        }
+
+        return result;
     }
 
-    if (hasMore) {
-        const remaining = total - displayTotal;
-        html += '<div class="sd-more-btn" id="sd-more-btn">▼ 显示更多 (' + remaining + '条)</div>';
-    }
+    function renderSearchResults() {
+        if (searchResults.length === 0) {
+            searchDropdown.innerHTML = '<div class="sd-empty">没有找到匹配的消息</div>';
+            searchDropdown.classList.add('show');
+            return;
+        }
 
-    searchDropdown.innerHTML = html;
-    searchDropdown.classList.add('show');
+        const total = searchResults.length;
+        const displayTotal = Math.min(searchDisplayCount, total);
+        const hasMore = displayTotal < total;
+        const q = searchInput.value.trim().toLowerCase();
 
-    // 重新绑定点击事件
-    searchDropdown.querySelectorAll('.sd-item').forEach(el => {
-        el.addEventListener('click', function() {
-            const idx = parseInt(this.dataset.index);
-            if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
-                jumpToMessage(idx);
-                searchDropdown.classList.remove('show');
-                searchInput.value = '';
-                searchClear.classList.remove('show');
-                searchResults = [];
-                searchDisplayCount = SEARCH_BATCH_SIZE;
-            }
+        let html = '<div class="sd-header">共 ' + total + ' 条结果</div>';
+
+        for (let i = 0; i < displayTotal; i++) {
+            const match = searchResults[i];
+            const msg = match.msg;
+            const isUser = msg._userType === 'user';
+            let name = isUser ? settings.userName : (settings.botName && settings.botName !== 'Bot' ?
+                settings.botName : (msg._botName || 'Bot'));
+            const time = formatBeijingTime(msg.create_time);
+            const fullText = msg._text || '';
+
+            // 使用新的预览生成函数
+            const preview = generateSearchPreview(fullText, q, 60);
+
+            html += '<div class="sd-item" data-index="' + match.index + '">' +
+                '<div class="sd-top"><span class="sd-name">' + escapeHtml(name) + '</span>' +
+                '<span class="sd-time">' + escapeHtml(time) + '</span></div>' +
+                '<div class="sd-preview">' + preview + '</div></div>';
+        }
+
+        if (hasMore) {
+            const remaining = total - displayTotal;
+            html += '<div class="sd-more-btn" id="sd-more-btn">▼ 显示更多 (' + remaining + '条)</div>';
+        }
+
+        searchDropdown.innerHTML = html;
+        searchDropdown.classList.add('show');
+
+        // 重新绑定点击事件
+        searchDropdown.querySelectorAll('.sd-item').forEach(el => {
+            el.addEventListener('click', function() {
+                const idx = parseInt(this.dataset.index);
+                if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
+                    jumpToMessage(idx);
+                    searchDropdown.classList.remove('show');
+                    searchInput.value = '';
+                    searchClear.classList.remove('show');
+                    searchResults = [];
+                    searchDisplayCount = SEARCH_BATCH_SIZE;
+                }
+            });
         });
-    });
 
-    const moreBtn = document.getElementById('sd-more-btn');
-    if (moreBtn) {
-        // 移除旧的事件监听，避免重复绑定
-        const newMoreBtn = moreBtn.cloneNode(true);
-        moreBtn.parentNode.replaceChild(newMoreBtn, moreBtn);
-        newMoreBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            searchDisplayCount += SEARCH_BATCH_SIZE;
-            renderSearchResults();
-        });
+        const moreBtn = document.getElementById('sd-more-btn');
+        if (moreBtn) {
+            // 移除旧的事件监听
+            const newMoreBtn = moreBtn.cloneNode(true);
+            moreBtn.parentNode.replaceChild(newMoreBtn, moreBtn);
+            newMoreBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                searchDisplayCount += SEARCH_BATCH_SIZE;
+                renderSearchResults();
+            });
+        }
     }
-}
 
     // ===== 导出MD =====
     function exportMD() {
