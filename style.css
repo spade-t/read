@@ -152,6 +152,7 @@ input[type="file"] {
     margin: 0;
     padding: 0;
     display: none;
+    touch-action: pan-y;
 }
 #search-dropdown.show {
     display: block;
@@ -164,6 +165,7 @@ input[type="file"] {
     background: #f7f7f7;
     border-bottom: 1px solid #eeeeee;
     box-sizing: border-box;
+    flex-shrink: 0;
 }
 
 .sd-item {
@@ -172,6 +174,7 @@ input[type="file"] {
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     box-sizing: border-box;
+    touch-action: pan-y;
 }
 .sd-item:active {
     background: #f5f5f5;
@@ -181,8 +184,8 @@ input[type="file"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
-    font-size: 15px;
+    margin-bottom: 4px;
+    font-size: 14px;
 }
 
 .sd-name {
@@ -200,7 +203,6 @@ input[type="file"] {
     flex-shrink: 0;
 }
 
-/* 单行显示，JS已做截断，这里只负责样式 */
 .sd-preview {
     display: block;
     font-size: 14px;
@@ -208,6 +210,8 @@ input[type="file"] {
     line-height: 1.4;
     white-space: nowrap;
     width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* 关键词高亮 - 微信同款绿色 */
@@ -224,6 +228,7 @@ input[type="file"] {
     font-size: 14px;
     border-bottom: 1px solid #f0f0f0;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .sd-empty {
@@ -372,7 +377,6 @@ input[type="file"] {
 .msg-item:hover .msg-actions {
     opacity: 1;
 }
-/* 移动端默认显示 */
 @media (max-width: 768px) {
     .msg-actions {
         opacity: 1;
