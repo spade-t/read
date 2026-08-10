@@ -48,7 +48,6 @@
     const calendarPrev = $('calendar-prev');
     const calendarNext = $('calendar-next');
 
-    // 主题按钮
     const themeBtns = document.querySelectorAll('.theme-btn');
 
     // ===== 全局状态 =====
@@ -97,6 +96,9 @@
     let maxYear = 2026;
     let maxMonth = 7;
     let maxDay = 31;
+
+    // ===== 固定高度（核心修复） =====
+    const FIXED_ITEM_HEIGHT = 150;
 
     // ===== 工具函数 =====
 
@@ -458,7 +460,6 @@
         }
         settings.darkMode = enabled;
 
-        // 更新主题按钮高亮
         themeBtns.forEach(btn => {
             const theme = btn.dataset.theme;
             if (theme === 'dark' && enabled) {
@@ -473,16 +474,10 @@
 
     // ===== 虚拟滚动 =====
 
+    // ★★★ 核心修复：固定高度，不再估算 ★★★
     function estimateItemHeight(msg) {
-        const text = msg._text || '';
-        const charCount = text.length;
-        let baseHeight = 44;
-        const lineWidth = 18;
-        const lines = Math.max(1, Math.ceil(charCount / lineWidth));
-        const bubbleHeight = lines * 20 + 12;
-        baseHeight += bubbleHeight;
-        baseHeight += 28;
-        return Math.max(100, baseHeight + 4);
+        // 所有消息固定高度，由 CSS padding-bottom 控制间距
+        return FIXED_ITEM_HEIGHT;
     }
 
     function buildHeightCache() {
@@ -1349,7 +1344,6 @@
         sBotName.value = settings.botName || '';
         sUserAvatarPreview.src = settings.userAvatar || '';
         sBotAvatarPreview.src = settings.botAvatar || '';
-        // 更新主题按钮状态
         themeBtns.forEach(btn => {
             const theme = btn.dataset.theme;
             if (theme === 'dark' && settings.darkMode) {
@@ -1445,13 +1439,11 @@
         }
     });
 
-    // 主题按钮点击
     themeBtns.forEach(btn => {
         btn.addEventListener('click', function() {
             const theme = this.dataset.theme;
             const isDark = theme === 'dark';
             applyDarkMode(isDark);
-            // 保存到 settings（但保存到 DB 由保存按钮统一处理）
         });
     });
 
@@ -1571,10 +1563,8 @@
         renderCalendar(calendarYear, calendarMonthIndex);
     });
 
-    // ===== 设置图标 =====
     settingsBtn.innerHTML = getSettingsIcon();
 
-    // ===== 滚动事件 =====
     messagesContainer.addEventListener('scroll', function() {
         if (!isDataLoaded || allMessages.length === 0) return;
 
@@ -1590,7 +1580,6 @@
         });
     });
 
-    // ===== Resize =====
     let resizeTimeout = null;
     window.addEventListener('resize', function() {
         if (resizeTimeout) clearTimeout(resizeTimeout);
@@ -1601,12 +1590,10 @@
         }, 300);
     });
 
-    // ===== 页面关闭保存 =====
     window.addEventListener('beforeunload', function() {
         saveScrollPosition();
     });
 
-    // ===== 初始化 =====
     async function init() {
         await loadSettings();
         setupMessageEvents();
@@ -1614,7 +1601,6 @@
         settingsBtn.innerHTML = getSettingsIcon();
         calendarBtn.innerHTML = getCalendarIcon();
 
-        // 设置初始主题按钮高亮
         const isDark = settings.darkMode || false;
         themeBtns.forEach(btn => {
             const theme = btn.dataset.theme;
