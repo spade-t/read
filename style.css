@@ -58,13 +58,14 @@ input[type="file"] {
     position: relative;
 }
 
-/* 第一行：标题 + 图标 */
+/* 第一行：标题 + 图标 - 垂直居中对齐 */
 #top-row {
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
     padding: 0 0 12px 0;
+    min-height: 38px;
 }
 #title {
     font-size: 20px;
@@ -75,15 +76,16 @@ input[type="file"] {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 70%;
+    line-height: 1.4;
 }
 #top-icons {
     position: absolute;
     right: 0;
-    top: 50%;
-    transform: translateY(-50%);
     display: flex;
     align-items: center;
     gap: 4px;
+    top: 50%;
+    transform: translateY(-50%);
 }
 
 /* 第二行：搜索框 */
@@ -1086,6 +1088,7 @@ input[type="file"] {
     }
     #top-row {
         padding: 0 0 10px 0;
+        min-height: 32px;
     }
     #title {
         font-size: 18px;
