@@ -446,15 +446,15 @@
     function estimateItemHeight(msg) {
         const text = msg._text || '';
         const charCount = text.length;
-        let baseHeight = 48;
-        const lineWidth = 20;
-        const lineHeight = 24;
+        let baseHeight = 38;
+        const lineWidth = 18;
+        const lineHeight = 20;
         const lines = Math.max(1, Math.ceil(charCount / lineWidth));
-        const bubbleHeight = lines * lineHeight + 14;
+        const bubbleHeight = lines * lineHeight + 8;
         baseHeight += bubbleHeight;
-        baseHeight += 30;
-        baseHeight += 8;
-        return Math.max(115, baseHeight + 4);
+        baseHeight += 22;
+        baseHeight += 4;
+        return Math.max(90, baseHeight);
     }
 
     function buildHeightCache() {
