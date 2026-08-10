@@ -55,17 +55,18 @@ input[type="file"] {
     flex-shrink: 0;
     z-index: 10;
     padding: 12px 14px 10px 14px;
-    position: relative;
 }
 
-/* 第一行：标题 + 图标 - 垂直居中对齐 */
+/* 第一行：日历 | 标题 | 设置 - flex 完美居中 */
 #top-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    position: relative;
+    justify-content: space-between;
     padding: 0 0 12px 0;
-    min-height: 38px;
+    min-height: 40px;
+}
+#top-row .icon-btn {
+    flex-shrink: 0;
 }
 #title {
     font-size: 20px;
@@ -75,17 +76,11 @@ input[type="file"] {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 70%;
+    text-align: center;
+    flex: 1;
+    min-width: 0;
+    margin: 0 12px;
     line-height: 1.4;
-}
-#top-icons {
-    position: absolute;
-    right: 0;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    top: 50%;
-    transform: translateY(-50%);
 }
 
 /* 第二行：搜索框 */
@@ -163,6 +158,12 @@ input[type="file"] {
 }
 .icon-btn:active {
     background: #e8eaed;
+}
+#top-row .icon-btn.calendar-btn {
+    order: 0;
+}
+#top-row .icon-btn.settings-btn {
+    order: 2;
 }
 
 /* ===== 日历面板 ===== */
@@ -1088,20 +1089,17 @@ input[type="file"] {
     }
     #top-row {
         padding: 0 0 10px 0;
-        min-height: 32px;
+        min-height: 34px;
     }
     #title {
         font-size: 18px;
-        max-width: 65%;
+        margin: 0 8px;
     }
-    #top-icons {
-        gap: 2px;
-    }
-    .icon-btn {
+    #top-row .icon-btn {
         width: 30px;
         height: 30px;
     }
-    .icon-btn svg {
+    #top-row .icon-btn svg {
         width: 20px;
         height: 20px;
     }
@@ -1208,20 +1206,20 @@ input[type="file"] {
 @media (max-width: 400px) {
     #title {
         font-size: 16px;
-        max-width: 60%;
+        margin: 0 6px;
+    }
+    #top-row .icon-btn {
+        width: 28px;
+        height: 28px;
+    }
+    #top-row .icon-btn svg {
+        width: 18px;
+        height: 18px;
     }
     #search-input {
         font-size: 13px;
         padding: 4px 24px 4px 10px;
         height: 28px;
-    }
-    .icon-btn {
-        width: 28px;
-        height: 28px;
-    }
-    .icon-btn svg {
-        width: 18px;
-        height: 18px;
     }
     .msg-bubble {
         font-size: 14px;
