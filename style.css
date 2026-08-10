@@ -159,12 +159,6 @@ input[type="file"] {
 .icon-btn:active {
     background: #e8eaed;
 }
-#top-row .icon-btn.calendar-btn {
-    order: 0;
-}
-#top-row .icon-btn.settings-btn {
-    order: 2;
-}
 
 /* ===== 日历面板 ===== */
 #calendar-overlay {
@@ -1095,11 +1089,11 @@ input[type="file"] {
         font-size: 18px;
         margin: 0 8px;
     }
-    #top-row .icon-btn {
+    .icon-btn {
         width: 30px;
         height: 30px;
     }
-    #top-row .icon-btn svg {
+    .icon-btn svg {
         width: 20px;
         height: 20px;
     }
@@ -1208,11 +1202,11 @@ input[type="file"] {
         font-size: 16px;
         margin: 0 6px;
     }
-    #top-row .icon-btn {
+    .icon-btn {
         width: 28px;
         height: 28px;
     }
-    #top-row .icon-btn svg {
+    .icon-btn svg {
         width: 18px;
         height: 18px;
     }
