@@ -602,16 +602,19 @@
         row.appendChild(body);
         item.appendChild(row);
 
-        // 点击消息选中
+        // 点击消息选中（只有点击到 .msg-item 本身才触发，按钮事件在委托中处理）
         item.addEventListener('click', function(e) {
-            e.stopPropagation();
+            // 如果点击的是按钮，不处理选中
+            if (e.target.closest('.msg-action-btn')) return;
             const idx = parseInt(this.dataset.index);
-            if (selectedIndex === idx) {
-                selectedIndex = -1;
-            } else {
-                selectedIndex = idx;
+            if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
+                if (selectedIndex === idx) {
+                    selectedIndex = -1;
+                } else {
+                    selectedIndex = idx;
+                }
+                fullRebuild();
             }
-            fullRebuild();
         });
 
         return item;
@@ -742,44 +745,42 @@
 
     // ===== 消息事件委托 =====
     function setupMessageEvents() {
+        // 使用 capture 阶段优先处理按钮点击
         messagesContainer.addEventListener('click', function(e) {
             const btn = e.target.closest('.msg-action-btn');
-            if (!btn) return;
-
-            const action = btn.dataset.action;
-            const index = parseInt(btn.dataset.index);
-            if (isNaN(index) || index < 0 || index >= allMessages.length) return;
-
-            const msg = allMessages[index];
-
-            if (action === 'copy') {
-                const text = msg._text || '';
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
-                } else {
-                    fallbackCopy(text);
-                }
+            if (btn) {
                 e.stopPropagation();
-            } else if (action === 'delete') {
-                e.stopPropagation();
-                confirmAction().then((ok) => {
-                    if (ok) {
-                        deleteMessage(index);
+                const action = btn.dataset.action;
+                const index = parseInt(btn.dataset.index);
+                if (isNaN(index) || index < 0 || index >= allMessages.length) return;
+
+                const msg = allMessages[index];
+
+                if (action === 'copy') {
+                    const text = msg._text || '';
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
+                    } else {
+                        fallbackCopy(text);
                     }
-                }).catch(() => {});
+                } else if (action === 'delete') {
+                    confirmAction().then((ok) => {
+                        if (ok) {
+                            deleteMessage(index);
+                        }
+                    }).catch(() => {});
+                }
+                return;
             }
-        });
 
-        // 点击空白取消选中
-        messagesContainer.addEventListener('click', function(e) {
-            if (e.target === this || e.target.id === 'scroll-viewport' || e.target.tagName === 'DIV' && !e.target.closest(
-                    '.msg-item')) {
+            // 点击空白取消选中
+            if (e.target === messagesContainer || e.target.id === 'scroll-viewport' || e.target === document.body) {
                 if (selectedIndex !== -1) {
                     selectedIndex = -1;
                     fullRebuild();
                 }
             }
-        });
+        }, true);
     }
 
     // ===== 删除消息 =====
