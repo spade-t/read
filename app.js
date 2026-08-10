@@ -29,7 +29,6 @@
     const sBgInput = $('s-bg-input');
     const sUserAvatarPreview = $('s-user-avatar-preview');
     const sBotAvatarPreview = $('s-bot-avatar-preview');
-    const sBgPreview = $('s-bg-preview');
     const sSave = $('s-save');
     const sUploadJson = $('s-upload-json');
     const sExportMd = $('s-export-md');
@@ -44,7 +43,6 @@
 
     const calendarBtn = $('calendar-btn');
     const calendarOverlay = $('calendar-overlay');
-    const calendarClose = $('calendar-close');
     const calendarMonth = $('calendar-month');
     const calendarDays = $('calendar-days');
     const calendarPrev = $('calendar-prev');
@@ -446,13 +444,14 @@
     function estimateItemHeight(msg) {
         const text = msg._text || '';
         const charCount = text.length;
-        let baseHeight = 50;
+        let baseHeight = 52;
         const lineWidth = 22;
         const lines = Math.max(1, Math.ceil(charCount / lineWidth));
         const bubbleHeight = lines * 22 + 16;
         baseHeight += bubbleHeight;
-        baseHeight += 26;
-        return Math.max(115, baseHeight);
+        baseHeight += 30;
+        baseHeight += 16;
+        return Math.max(130, baseHeight);
     }
 
     function buildHeightCache() {
@@ -933,7 +932,6 @@
         const today = new Date();
         const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
 
-        // 解析最大日期
         const maxParts = maxDateStr ? maxDateStr.split('-').map(Number) : [year, month + 1, 0];
         const maxYear = maxParts[0] || year;
         const maxMonth = maxParts[1] || (month + 1);
@@ -950,7 +948,6 @@
             const hasMsg = messageDateMap[dateStr] && messageDateMap[dateStr].length > 0;
             const isToday = dateStr === todayStr;
 
-            // 判断是否超出最大日期
             let isDisabled = false;
             if (maxDateStr) {
                 const yearCompare = year > maxYear;
@@ -986,7 +983,6 @@
                     if (idx >= 0) {
                         calendarOverlay.classList.remove('open');
                         jumpToMessage(idx);
-                        // 不显示 Toast 提示
                     }
                 }
             });
@@ -1319,7 +1315,6 @@
         if (this.files && this.files[0]) {
             try {
                 settings.bgImage = await imageToBase64(this.files[0]);
-                // 不再显示预览，只保存
             } catch (err) { showToast('❌ 图片读取失败'); }
         }
         this.value = '';
@@ -1373,7 +1368,6 @@
 
     calendarBtn.addEventListener('click', openCalendar);
 
-    calendarClose.addEventListener('click', closeCalendar);
     calendarOverlay.addEventListener('click', function(e) {
         if (e.target === this) closeCalendar();
     });
@@ -1409,7 +1403,6 @@
             if (idx >= 0) {
                 calendarOverlay.classList.remove('open');
                 jumpToMessage(idx);
-                // 不显示 Toast 提示
             }
         } else {
             showToast('今天没有聊天记录');
