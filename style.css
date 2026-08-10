@@ -54,7 +54,7 @@ input[type="file"] {
     border-bottom: 1px solid #ddd;
     flex-shrink: 0;
     z-index: 10;
-    padding: 10px 14px 8px 14px;
+    padding: 8px 14px 6px 14px;
     position: relative;
 }
 
@@ -62,13 +62,13 @@ input[type="file"] {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 2px 0 8px 0;
+    padding: 0 0 6px 0;
 }
 #title {
-    font-size: 28px;
+    font-size: 20px;
     font-weight: 700;
     color: #1a1a1a;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -88,10 +88,10 @@ input[type="file"] {
 }
 #search-input {
     width: 100%;
-    padding: 10px 36px 10px 16px;
+    padding: 8px 32px 8px 14px;
     border: 1px solid #ddd;
-    border-radius: 24px;
-    font-size: 16px;
+    border-radius: 20px;
+    font-size: 14px;
     outline: none;
     background: #f1f3f4;
     transition: border 0.2s, background 0.2s;
@@ -101,13 +101,17 @@ input[type="file"] {
     border-color: #1a73e8;
     background: #fff;
 }
+#search-input::placeholder {
+    color: #aaa;
+    font-size: 14px;
+}
 #search-clear {
     position: absolute;
-    right: 12px;
+    right: 10px;
     top: 50%;
     transform: translateY(-50%);
     color: #999;
-    font-size: 18px;
+    font-size: 16px;
     cursor: pointer;
     display: none;
     background: none;
@@ -118,10 +122,10 @@ input[type="file"] {
     display: block;
 }
 
-/* ===== 顶部图标按钮（日历 + 设置） ===== */
+/* ===== 顶部图标按钮 ===== */
 .icon-btn {
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     border: none;
     background: transparent;
@@ -135,8 +139,8 @@ input[type="file"] {
     flex-shrink: 0;
 }
 .icon-btn svg {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     stroke: currentColor;
     stroke-width: 2;
     fill: none;
@@ -145,12 +149,6 @@ input[type="file"] {
 }
 .icon-btn:active {
     background: #e8eaed;
-}
-.icon-btn.calendar-btn {
-    color: #555;
-}
-.icon-btn.settings-btn {
-    color: #555;
 }
 
 /* ===== 日历面板 ===== */
@@ -250,6 +248,10 @@ input[type="file"] {
 #calendar-panel .cal-days .cal-day.today:active {
     background: #1557b0;
 }
+#calendar-panel .cal-days .cal-day.disabled {
+    cursor: default;
+    color: #e0e0e0;
+}
 #calendar-panel .cal-footer {
     margin-top: 14px;
     display: flex;
@@ -269,7 +271,7 @@ input[type="file"] {
     background: #e0e0e0;
 }
 
-/* ===== 搜索下拉 - 微信风格 ===== */
+/* ===== 搜索下拉 ===== */
 #search-dropdown {
     position: absolute;
     top: 100%;
@@ -407,7 +409,7 @@ input[type="file"] {
     right: 0;
     display: flex;
     flex-direction: column;
-    padding-bottom: 8px;
+    padding-bottom: 10px;
     overflow: visible;
 }
 .msg-item:last-child {
@@ -502,6 +504,8 @@ input[type="file"] {
     gap: 4px;
     margin-top: 4px;
     padding: 0 4px;
+}
+.msg-actions {
     opacity: 0.6;
     transition: opacity 0.2s;
 }
@@ -739,6 +743,34 @@ input[type="file"] {
 .s-row input[type="text"]:focus {
     border-color: #1a73e8;
 }
+
+/* 名称行：label 和 input 同行 */
+.s-row-inline {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+}
+.s-row-inline label {
+    min-width: 70px;
+    flex-shrink: 0;
+    font-size: 14px;
+    color: #555;
+    font-weight: 500;
+}
+.s-row-inline input[type="text"] {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 15px;
+    outline: none;
+    transition: border 0.2s;
+}
+.s-row-inline input[type="text"]:focus {
+    border-color: #1a73e8;
+}
+
 .s-avatar-row {
     display: flex;
     align-items: center;
@@ -751,13 +783,7 @@ input[type="file"] {
     border-radius: 50%;
     object-fit: cover;
     border: 1px solid #ddd;
-    background: #f0f0f0;
-}
-.s-avatar-row .preview.bg-preview {
-    border-radius: 8px;
-    width: 80px;
-    height: 48px;
-    object-fit: cover;
+    background: transparent;
 }
 .s-avatar-row .file-input-wrap {
     position: relative;
@@ -786,6 +812,41 @@ input[type="file"] {
 .s-avatar-row .file-btn:active {
     background: #d0d0d0;
 }
+
+/* 背景选择 - 只有按钮，无预览 */
+.s-bg-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.s-bg-row .file-input-wrap {
+    position: relative;
+    display: inline-block;
+}
+.s-bg-row .file-input-wrap input[type="file"] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+.s-bg-row .file-btn {
+    padding: 6px 16px;
+    background: #f1f3f4;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #555;
+    border: 1px solid #ddd;
+    transition: background 0.15s;
+    cursor: pointer;
+    display: inline-block;
+}
+.s-bg-row .file-btn:active {
+    background: #d0d0d0;
+}
+
 .s-data-row {
     display: flex;
     flex-wrap: wrap;
@@ -945,25 +1006,25 @@ input[type="file"] {
 /* ===== 响应式 ===== */
 @media (max-width: 600px) {
     #header {
-        padding: 6px 10px 6px 10px;
+        padding: 6px 10px 4px 10px;
     }
     #title-row {
-        padding: 0 0 6px 0;
+        padding: 0 0 4px 0;
     }
     #title {
-        font-size: 22px;
+        font-size: 18px;
     }
     #search-input {
-        font-size: 15px;
-        padding: 9px 32px 9px 14px;
+        font-size: 14px;
+        padding: 7px 28px 7px 12px;
     }
     .icon-btn {
-        width: 34px;
-        height: 34px;
+        width: 30px;
+        height: 30px;
     }
     .icon-btn svg {
-        width: 20px;
-        height: 20px;
+        width: 18px;
+        height: 18px;
     }
     #messages-container {
         padding: 8px 6px 6px 6px;
@@ -1019,13 +1080,13 @@ input[type="file"] {
         width: 40px;
         height: 40px;
     }
-    .s-avatar-row .preview.bg-preview {
-        width: 64px;
-        height: 40px;
+    .s-row-inline label {
+        min-width: 60px;
+        font-size: 13px;
     }
-    .s-row input[type="text"] {
-        font-size: 15px;
-        padding: 8px 12px;
+    .s-row-inline input[type="text"] {
+        font-size: 14px;
+        padding: 6px 10px;
     }
     .s-save-btn {
         font-size: 17px;
@@ -1052,19 +1113,19 @@ input[type="file"] {
 }
 @media (max-width: 400px) {
     #title {
-        font-size: 19px;
+        font-size: 16px;
     }
     #search-input {
-        font-size: 14px;
-        padding: 7px 28px 7px 12px;
+        font-size: 13px;
+        padding: 6px 24px 6px 10px;
     }
     .icon-btn {
-        width: 30px;
-        height: 30px;
+        width: 28px;
+        height: 28px;
     }
     .icon-btn svg {
-        width: 18px;
-        height: 18px;
+        width: 16px;
+        height: 16px;
     }
     .msg-bubble {
         font-size: 14px;
@@ -1103,5 +1164,13 @@ input[type="file"] {
     }
     .sd-item {
         padding: 8px 12px;
+    }
+    .s-row-inline label {
+        min-width: 50px;
+        font-size: 12px;
+    }
+    .s-row-inline input[type="text"] {
+        font-size: 13px;
+        padding: 5px 8px;
     }
 }
