@@ -798,7 +798,7 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     display: flex;
     flex-direction: column;
     overflow: visible;
-    padding-bottom: 6px;
+    padding-bottom: 8px;   /* 固定间距，所有消息统一 */
 }
 .msg-item:last-child {
     padding-bottom: 0;
