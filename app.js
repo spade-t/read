@@ -29,6 +29,7 @@
     const sBgInput = $('s-bg-input');
     const sUserAvatarPreview = $('s-user-avatar-preview');
     const sBotAvatarPreview = $('s-bot-avatar-preview');
+    const sDarkMode = $('s-dark-mode');
     const sSave = $('s-save');
     const sUploadJson = $('s-upload-json');
     const sExportMd = $('s-export-md');
@@ -63,7 +64,8 @@
         botName: 'Bot',
         userAvatar: '',
         botAvatar: '',
-        bgImage: ''
+        bgImage: '',
+        darkMode: false
     };
     let pendingConfirm = null;
 
@@ -81,6 +83,9 @@
     let searchMatchCache = [];
     let searchDisplayCount = 50;
     const SEARCH_BATCH_SIZE = 50;
+
+    // 选中状态
+    let selectedIndex = -1;
 
     // 日历状态
     let calendarYear = 2026;
@@ -441,6 +446,18 @@
         return result;
     }
 
+    // ===== 深色模式 =====
+
+    function applyDarkMode(enabled) {
+        if (enabled) {
+            document.body.classList.add('dark-mode');
+        } else {
+            document.body.classList.remove('dark-mode');
+        }
+        sDarkMode.checked = enabled;
+        settings.darkMode = enabled;
+    }
+
     // ===== 虚拟滚动 =====
 
     function estimateItemHeight(msg) {
@@ -518,7 +535,7 @@
         const time = formatBeijingTime(msg.create_time);
 
         const item = document.createElement('div');
-        item.className = 'msg-item';
+        item.className = 'msg-item' + (selectedIndex === index ? ' selected' : '');
         item.dataset.index = index;
         item.style.position = 'absolute';
         item.style.left = '0';
@@ -584,6 +601,19 @@
         row.appendChild(avatarImg);
         row.appendChild(body);
         item.appendChild(row);
+
+        // 点击消息选中
+        item.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const idx = parseInt(this.dataset.index);
+            if (selectedIndex === idx) {
+                selectedIndex = -1;
+            } else {
+                selectedIndex = idx;
+            }
+            fullRebuild();
+        });
+
         return item;
     }
 
@@ -739,6 +769,17 @@
                 }).catch(() => {});
             }
         });
+
+        // 点击空白取消选中
+        messagesContainer.addEventListener('click', function(e) {
+            if (e.target === this || e.target.id === 'scroll-viewport' || e.target.tagName === 'DIV' && !e.target.closest(
+                    '.msg-item')) {
+                if (selectedIndex !== -1) {
+                    selectedIndex = -1;
+                    fullRebuild();
+                }
+            }
+        });
     }
 
     // ===== 删除消息 =====
@@ -749,6 +790,8 @@
         try {
             if (msgId) await deleteMessageFromDB(msgId);
             allMessages.splice(index, 1);
+            if (selectedIndex === index) selectedIndex = -1;
+            else if (selectedIndex > index) selectedIndex--;
             fullRebuild();
             showToast('🗑️ 已删除');
         } catch (err) {
@@ -1168,6 +1211,8 @@
         sBotName.value = settings.botName || '';
         sUserAvatarPreview.src = settings.userAvatar || '';
         sBotAvatarPreview.src = settings.botAvatar || '';
+        sDarkMode.checked = settings.darkMode || false;
+        applyDarkMode(settings.darkMode || false);
 
         if (isDataLoaded && allMessages.length > 0) {
             fullRebuild();
@@ -1294,6 +1339,7 @@
         sBotName.value = settings.botName || '';
         sUserAvatarPreview.src = settings.userAvatar || '';
         sBotAvatarPreview.src = settings.botAvatar || '';
+        sDarkMode.checked = settings.darkMode || false;
     }
 
     function closeSettings() {
@@ -1368,17 +1414,20 @@
     sSave.addEventListener('click', async function() {
         settings.userName = sUserName.value.trim() || '我';
         settings.botName = sBotName.value.trim() || 'Bot';
+        settings.darkMode = sDarkMode.checked;
         try {
             await saveSettingsToDB(settings);
-            title.textContent = '与 ' + settings.botName + ' 的回忆录';
-            if (isDataLoaded && allMessages.length > 0) {
-                fullRebuild();
-            }
+            applySettings();
             closeSettings();
             showToast('✅ 设置已保存');
         } catch (err) {
             showToast('❌ 保存失败');
         }
+    });
+
+    // 深色模式开关实时切换
+    sDarkMode.addEventListener('change', function() {
+        applyDarkMode(this.checked);
     });
 
     sUserAvatarInput.addEventListener('change', async function() {
@@ -1427,7 +1476,7 @@
                 const db = await getDB();
                 const tx = db.transaction(SETTINGS_STORE, 'readwrite');
                 const store = tx.objectStore(SETTINGS_STORE);
-                for (const key of ['userName', 'botName', 'userAvatar', 'botAvatar', 'bgImage']) {
+                for (const key of ['userName', 'botName', 'userAvatar', 'botAvatar', 'bgImage', 'darkMode']) {
                     store.delete(key);
                 }
                 await new Promise((resolve, reject) => {
@@ -1436,7 +1485,7 @@
                 });
                 allMessages = [];
                 isDataLoaded = false;
-                settings = { userName: '我', botName: 'Bot', userAvatar: '', botAvatar: '', bgImage: '' };
+                settings = { userName: '我', botName: 'Bot', userAvatar: '', botAvatar: '', bgImage: '', darkMode: false };
                 applySettings();
                 showUploadView();
                 showToast('🗑️ 已清空所有数据');
@@ -1537,7 +1586,6 @@
         await loadSettings();
         setupMessageEvents();
 
-        // 设置图标
         settingsBtn.innerHTML = getSettingsIcon();
         calendarBtn.innerHTML = getCalendarIcon();
 
