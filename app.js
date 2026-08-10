@@ -1,3 +1,1458 @@
+## 1. index.html
+
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>聊天记录查看器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="app">
+        <!-- ===== 顶部 ===== -->
+        <header id="header">
+            <div id="top-row">
+                <button class="icon-btn calendar-btn" id="calendar-btn" aria-label="日历"></button>
+                <span id="title">与 Bot 的回忆录</span>
+                <button class="icon-btn settings-btn" id="settings-btn" aria-label="设置"></button>
+            </div>
+            <div id="search-row">
+                <div id="search-wrap">
+                    <input type="text" id="search-input" placeholder="搜索" autocomplete="off">
+                    <button id="search-clear" aria-label="清除搜索">✕</button>
+                    <div id="search-dropdown"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- ===== 日历面板 ===== -->
+        <div id="calendar-overlay">
+            <div id="calendar-panel">
+                <div class="cal-header">
+                    <span class="cal-month" id="calendar-month">2026年 八月 ▼</span>
+                    <div class="cal-nav">
+                        <button id="calendar-prev">◀</button>
+                        <button id="calendar-next">▶</button>
+                    </div>
+                </div>
+                <div class="cal-weekdays">
+                    <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+                </div>
+                <div class="cal-days" id="calendar-days"></div>
+            </div>
+        </div>
+
+        <!-- ===== 上传区域 ===== -->
+        <div id="upload-zone">
+            <div class="icon">📄</div>
+            <button class="upload-btn" id="upload-btn">📁 上传JSON文件</button>
+            <input type="file" id="file-input" accept=".json" style="display:none;">
+            <div id="progress-wrap">
+                <div id="progress-text">
+                    <span class="pname" id="pname">文件名</span>
+                    <span id="pstatus">0%</span>
+                </div>
+                <div id="progress-bar-bg">
+                    <div id="progress-bar"></div>
+                </div>
+                <div style="font-size:12px;color:#888;" id="pdetail">准备解析...</div>
+            </div>
+        </div>
+
+        <!-- ===== 消息列表 ===== -->
+        <div id="messages-container" style="display:none;"></div>
+
+        <!-- ===== 底部 ===== -->
+        <footer id="footer" style="display:none;">
+            <span class="fcount" id="msg-count">总消息: 0 条</span>
+        </footer>
+    </div>
+
+    <!-- ===== 设置面板 ===== -->
+    <div id="settings-overlay">
+        <div id="settings-panel">
+            <div class="s-header">
+                <span>设置</span>
+                <button id="settings-close">✕</button>
+            </div>
+
+            <div class="s-group">
+                <div class="s-title">名称</div>
+                <hr class="s-divider">
+                <div class="s-row s-row-inline">
+                    <label>我的名称</label>
+                    <input type="text" id="s-user-name" placeholder="">
+                </div>
+                <div class="s-row s-row-inline">
+                    <label>Bot 名称</label>
+                    <input type="text" id="s-bot-name" placeholder="">
+                </div>
+            </div>
+
+            <div class="s-group">
+                <div class="s-title">头像</div>
+                <hr class="s-divider">
+                <div class="s-avatar-group">
+                    <div class="s-avatar-item">
+                        <label>我的头像</label>
+                        <div class="s-avatar-row">
+                            <img id="s-user-avatar-preview" class="preview" src="" alt="">
+                            <span class="file-input-wrap">
+                                <span class="file-btn">选择图片</span>
+                                <input type="file" id="s-user-avatar-input" accept="image/*">
+                            </span>
+                        </div>
+                    </div>
+                    <div class="s-avatar-item">
+                        <label>Bot 头像</label>
+                        <div class="s-avatar-row">
+                            <img id="s-bot-avatar-preview" class="preview" src="" alt="">
+                            <span class="file-input-wrap">
+                                <span class="file-btn">选择图片</span>
+                                <input type="file" id="s-bot-avatar-input" accept="image/*">
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="s-group">
+                <div class="s-title">聊天背景</div>
+                <hr class="s-divider">
+                <div class="s-row">
+                    <label>背景图片</label>
+                    <div class="s-avatar-row">
+                        <span class="file-input-wrap">
+                            <span class="file-btn">选择图片</span>
+                            <input type="file" id="s-bg-input" accept="image/*">
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="s-group">
+                <div class="s-title">数据管理</div>
+                <hr class="s-divider">
+                <div class="s-data-row">
+                    <button id="s-upload-json" class="primary">上传JSON</button>
+                    <button id="s-export-md" class="primary">导出MD</button>
+                    <button id="s-clear-data" class="danger">清空所有数据</button>
+                </div>
+                <div style="font-size:13px;color:#888;margin-top:10px;" id="s-data-size">数据大小: 0 MB</div>
+            </div>
+
+            <button class="s-save-btn" id="s-save">保存设置</button>
+        </div>
+    </div>
+
+    <!-- ===== 确认弹窗 ===== -->
+    <div id="confirm-overlay">
+        <div id="confirm-box">
+            <div class="c-icon">💔</div>
+            <div class="c-title" id="confirm-title">确认删除</div>
+            <div class="c-desc" id="confirm-desc">这是属于你们的回忆噢，删除后不可恢复！</div>
+            <div class="c-actions">
+                <button class="c-cancel" id="confirm-cancel">取消</button>
+                <button class="c-confirm" id="confirm-ok">确定删除</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+```
+
+
+## 2. style.css
+
+```css
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+:root {
+    --bg-color: #e8eaed;
+    --bubble-bot-bg: #ffffff;
+    --bubble-user-bg: #dcf8c6;
+    --text-color: #1a1a1a;
+    --time-color: #888;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    --radius: 12px;
+    --max-width: 820px;
+    --avatar-size: 40px;
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+html,
+body {
+    height: 100%;
+    font-family: var(--font-family);
+    background: var(--bg-color);
+    color: #1a1a1a;
+    overflow: hidden;
+}
+button {
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    border: none;
+    background: none;
+    color: inherit;
+}
+input[type="text"],
+input[type="file"] {
+    font-family: inherit;
+    font-size: 14px;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: var(--max-width);
+    margin: 0 auto;
+    background: var(--bg-color);
+    position: relative;
+    overflow: hidden;
+}
+
+/* ===== 顶部导航 ===== */
+#header {
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    flex-shrink: 0;
+    z-index: 10;
+    padding: 12px 14px 10px 14px;
+}
+
+/* 第一行：日历 | 标题 | 设置 - flex 完美居中 */
+#top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0 12px 0;
+    min-height: 40px;
+}
+#top-row .icon-btn {
+    flex-shrink: 0;
+}
+#title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a1a1a;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+    flex: 1;
+    min-width: 0;
+    margin: 0 12px;
+    line-height: 1.4;
+}
+
+/* 第二行：搜索框 */
+#search-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+#search-wrap {
+    flex: 1;
+    position: relative;
+    min-width: 0;
+}
+#search-input {
+    width: 100%;
+    padding: 6px 32px 6px 14px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    font-size: 14px;
+    outline: none;
+    background: #f1f3f4;
+    transition: border 0.2s, background 0.2s;
+    -webkit-appearance: none;
+    height: 34px;
+}
+#search-input:focus {
+    border-color: #1a73e8;
+    background: #fff;
+}
+#search-input::placeholder {
+    color: #aaa;
+    font-size: 14px;
+}
+#search-clear {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #999;
+    font-size: 16px;
+    cursor: pointer;
+    display: none;
+    background: none;
+    border: none;
+    padding: 0 4px;
+}
+#search-clear.show {
+    display: block;
+}
+
+/* ===== 顶部图标按钮 ===== */
+.icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    padding: 0;
+    color: #555;
+    flex-shrink: 0;
+}
+.icon-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.icon-btn:active {
+    background: #e8eaed;
+}
+#top-row .icon-btn.calendar-btn {
+    order: 0;
+}
+#top-row .icon-btn.settings-btn {
+    order: 2;
+}
+
+/* ===== 日历面板 ===== */
+#calendar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 150;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+}
+#calendar-overlay.open {
+    display: flex;
+}
+#calendar-panel {
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px 24px 24px;
+    width: 92%;
+    max-width: 380px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+#calendar-panel .cal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+#calendar-panel .cal-header .cal-month {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background 0.15s;
+    user-select: none;
+}
+#calendar-panel .cal-header .cal-month:active {
+    background: #f0f0f0;
+}
+#calendar-panel .cal-header .cal-nav {
+    display: flex;
+    gap: 12px;
+}
+#calendar-panel .cal-header .cal-nav button {
+    font-size: 20px;
+    color: #666;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+#calendar-panel .cal-header .cal-nav button:active {
+    background: #f0f0f0;
+}
+#calendar-panel .cal-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-size: 13px;
+    color: #999;
+    margin-bottom: 6px;
+}
+#calendar-panel .cal-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+#calendar-panel .cal-days .cal-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.15s;
+    background: none;
+    border: none;
+    font-family: inherit;
+    color: #ccc;
+}
+#calendar-panel .cal-days .cal-day.has-msg {
+    color: #1a1a1a;
+    font-weight: 600;
+}
+#calendar-panel .cal-days .cal-day.has-msg:active {
+    background: #e8eaed;
+}
+#calendar-panel .cal-days .cal-day.empty {
+    cursor: default;
+}
+#calendar-panel .cal-days .cal-day.today {
+    background: #1a73e8;
+    color: #fff !important;
+    font-weight: 600;
+}
+#calendar-panel .cal-days .cal-day.today:active {
+    background: #1557b0;
+}
+#calendar-panel .cal-days .cal-day.disabled {
+    cursor: default;
+    color: #e0e0e0;
+}
+
+/* ===== 月份选择器 ===== */
+#month-picker-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 160;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+#month-picker-overlay.open {
+    display: flex;
+}
+#month-picker-overlay .picker-bg {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.2);
+}
+#month-picker {
+    position: relative;
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px 24px 24px;
+    width: 80%;
+    max-width: 320px;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+#month-picker .picker-header {
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 14px;
+}
+#month-picker .picker-years {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+}
+#month-picker .picker-years button {
+    padding: 8px 0;
+    border-radius: 8px;
+    border: 1px solid #eee;
+    background: #f7f7f7;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+#month-picker .picker-years button:active {
+    background: #e8eaed;
+}
+#month-picker .picker-years button.active {
+    background: #1a73e8;
+    color: #fff;
+    border-color: #1a73e8;
+}
+#month-picker .picker-years button.disabled {
+    color: #ccc;
+    cursor: default;
+    background: #f7f7f7;
+}
+#month-picker .picker-months {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+#month-picker .picker-months button {
+    padding: 8px 0;
+    border-radius: 8px;
+    border: 1px solid #eee;
+    background: #f7f7f7;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+#month-picker .picker-months button:active {
+    background: #e8eaed;
+}
+#month-picker .picker-months button.active {
+    background: #1a73e8;
+    color: #fff;
+    border-color: #1a73e8;
+}
+#month-picker .picker-months button.disabled {
+    color: #ccc;
+    cursor: default;
+    background: #f7f7f7;
+}
+
+/* ===== 搜索下拉 ===== */
+#search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 70vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #ffffff;
+    border-top: 1px solid #eeeeee;
+    z-index: 100;
+    margin: 0;
+    padding: 0;
+    display: none;
+    touch-action: pan-y;
+}
+#search-dropdown.show {
+    display: block;
+}
+
+.sd-header {
+    padding: 8px 16px;
+    font-size: 13px;
+    color: #999999;
+    background: #f7f7f7;
+    border-bottom: 1px solid #eeeeee;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.sd-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+    touch-action: pan-y;
+}
+.sd-item:active {
+    background: #f5f5f5;
+}
+
+.sd-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.sd-name {
+    font-weight: 500;
+    color: #333333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60%;
+}
+
+.sd-time {
+    font-size: 12px;
+    color: #999999;
+    flex-shrink: 0;
+}
+
+.sd-preview {
+    display: block;
+    font-size: 14px;
+    color: #666666;
+    line-height: 1.4;
+    white-space: nowrap;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sd-preview em {
+    font-style: normal;
+    color: #07c160;
+    font-weight: 500;
+}
+
+.sd-more-btn {
+    padding: 12px;
+    text-align: center;
+    color: #1677ff;
+    font-size: 14px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.sd-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #999999;
+    font-size: 14px;
+}
+
+/* ===== 消息列表 ===== */
+#messages-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px 10px 8px 10px;
+    background: var(--bg-color);
+    position: relative;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    -webkit-overflow-scrolling: touch;
+}
+#messages-container::-webkit-scrollbar {
+    width: 4px;
+}
+#messages-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+#messages-container::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 10px;
+}
+
+/* ===== 消息列表内部滚动容器 ===== */
+#scroll-viewport {
+    position: relative;
+    width: 100%;
+    min-height: 100%;
+}
+
+/* ===== 消息条目 ===== */
+.msg-item {
+    position: absolute;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+}
+
+.msg-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    max-width: 92%;
+}
+.msg-row.user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+    margin-left: auto;
+}
+.msg-row.bot {
+    align-self: flex-start;
+    flex-direction: row;
+    margin-right: auto;
+}
+
+.msg-avatar {
+    width: var(--avatar-size);
+    height: var(--avatar-size);
+    border-radius: 50%;
+    flex-shrink: 0;
+    object-fit: cover;
+    background: #ccc;
+    border: 1px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.msg-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 50px;
+    max-width: 100%;
+}
+.msg-header {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
+    padding: 0 2px 3px 2px;
+    flex-wrap: wrap;
+}
+.msg-header .mname {
+    font-weight: 600;
+    font-size: 15px;
+}
+.msg-header .mtime {
+    color: var(--time-color);
+    font-size: 12px;
+}
+.msg-row.user .msg-header {
+    justify-content: flex-end;
+}
+.msg-row.bot .msg-header {
+    justify-content: flex-start;
+}
+
+.msg-bubble {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    word-break: break-word;
+    line-height: 1.7;
+    font-size: 16px;
+    position: relative;
+    background: var(--bubble-bot-bg);
+    border-top-left-radius: 4px;
+}
+.msg-row.user .msg-bubble {
+    background: var(--bubble-user-bg);
+    border-top-right-radius: 4px;
+    border-top-left-radius: var(--radius);
+}
+.msg-row.bot .msg-bubble {
+    background: var(--bubble-bot-bg);
+    border-top-left-radius: 4px;
+    border-top-right-radius: var(--radius);
+}
+.msg-bubble .text-content {
+    white-space: pre-wrap;
+}
+
+/* ===== 操作按钮 ===== */
+.msg-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+    padding: 0 4px;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+.msg-item:hover .msg-actions {
+    opacity: 1;
+}
+@media (max-width: 768px) {
+    .msg-actions {
+        opacity: 1;
+    }
+}
+
+.msg-action-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.15s;
+    padding: 0;
+    color: #888;
+}
+.msg-action-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+}
+.msg-action-btn:active {
+    transform: scale(0.85);
+}
+.msg-action-btn.copy-btn:hover {
+    background: #e8f0fe;
+    color: #1a73e8;
+}
+.msg-action-btn.copy-btn:active {
+    background: #d2e3fc;
+}
+.msg-action-btn.delete-btn:hover {
+    background: #fde8e8;
+    color: #e74c3c;
+}
+.msg-action-btn.delete-btn:active {
+    background: #fccccc;
+}
+
+.msg-row.user .msg-actions {
+    justify-content: flex-end;
+}
+.msg-row.bot .msg-actions {
+    justify-content: flex-start;
+}
+
+/* ===== 底部 ===== */
+#footer {
+    flex-shrink: 0;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(4px);
+    border-top: 1px solid #ddd;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 14px;
+    color: #555;
+}
+#footer .fcount {
+    font-weight: 500;
+}
+
+/* ===== 上传区域 ===== */
+#upload-zone {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 20px;
+    background: var(--bg-color);
+    gap: 24px;
+    text-align: center;
+}
+#upload-zone .icon {
+    font-size: 80px;
+    opacity: 0.5;
+}
+#upload-zone .upload-btn {
+    display: inline-block;
+    padding: 16px 48px;
+    background: #1a73e8;
+    color: #fff;
+    border-radius: 30px;
+    font-size: 20px;
+    font-weight: 600;
+    transition: background 0.2s, transform 0.1s;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+    box-shadow: 0 2px 10px rgba(26, 115, 232, 0.3);
+}
+#upload-zone .upload-btn:active {
+    background: #1557b0;
+    transform: scale(0.97);
+}
+
+/* ===== 进度条 ===== */
+#progress-wrap {
+    width: 100%;
+    max-width: 400px;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+}
+#progress-wrap.show {
+    display: flex;
+}
+#progress-bar-bg {
+    width: 100%;
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+#progress-bar {
+    height: 100%;
+    width: 0%;
+    background: #1a73e8;
+    border-radius: 10px;
+    transition: width 0.3s ease;
+}
+#progress-text {
+    font-size: 14px;
+    color: #555;
+    display: flex;
+    justify-content: space-between;
+}
+#progress-text .pname {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#pdetail {
+    font-size: 13px;
+}
+
+/* ===== 设置面板 ===== */
+#settings-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 200;
+    display: none;
+    justify-content: flex-end;
+    backdrop-filter: blur(2px);
+}
+#settings-overlay.open {
+    display: flex;
+}
+#settings-panel {
+    width: 100%;
+    max-width: 400px;
+    background: #fff;
+    height: 100%;
+    overflow-y: auto;
+    padding: 22px 24px 30px;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+    transform: translateX(100%);
+    transition: transform 0.28s ease;
+}
+#settings-overlay.open #settings-panel {
+    transform: translateX(0);
+}
+#settings-panel .s-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 22px;
+    font-weight: 600;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 20px;
+}
+#settings-panel .s-header button {
+    font-size: 24px;
+    color: #888;
+    padding: 0 4px;
+    background: none;
+    border: none;
+}
+#settings-panel .s-group {
+    margin-bottom: 24px;
+}
+#settings-panel .s-group .s-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 10px;
+}
+#settings-panel .s-group .s-divider {
+    border: none;
+    border-top: 1px solid #eee;
+    margin-bottom: 14px;
+}
+.s-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 14px;
+}
+.s-row label {
+    font-size: 14px;
+    color: #555;
+    font-weight: 500;
+}
+.s-row input[type="text"] {
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    outline: none;
+    transition: border 0.2s;
+}
+.s-row input[type="text"]:focus {
+    border-color: #1a73e8;
+}
+
+/* 名称行：label 和 input 同行 */
+.s-row-inline {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+}
+.s-row-inline label {
+    min-width: 70px;
+    flex-shrink: 0;
+    font-size: 14px;
+    color: #555;
+    font-weight: 500;
+}
+.s-row-inline input[type="text"] {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 15px;
+    outline: none;
+    transition: border 0.2s;
+}
+.s-row-inline input[type="text"]:focus {
+    border-color: #1a73e8;
+}
+
+/* 头像并排 */
+.s-avatar-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px 30px;
+}
+.s-avatar-item {
+    flex: 1;
+    min-width: 140px;
+}
+.s-avatar-item label {
+    font-size: 14px;
+    color: #555;
+    font-weight: 500;
+    display: block;
+    margin-bottom: 6px;
+}
+.s-avatar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.s-avatar-row .preview {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #ddd;
+    background: transparent;
+}
+.s-avatar-row .file-input-wrap {
+    position: relative;
+    display: inline-block;
+}
+.s-avatar-row .file-input-wrap input[type="file"] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+.s-avatar-row .file-btn {
+    padding: 6px 16px;
+    background: #f1f3f4;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #555;
+    border: 1px solid #ddd;
+    transition: background 0.15s;
+    cursor: pointer;
+    display: inline-block;
+}
+.s-avatar-row .file-btn:active {
+    background: #d0d0d0;
+}
+
+.s-data-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 6px;
+}
+.s-data-row button {
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    background: #f1f3f4;
+    transition: background 0.15s;
+    border: none;
+    font-family: inherit;
+}
+.s-data-row button:active {
+    background: #d0d0d0;
+}
+.s-data-row .danger {
+    color: #e74c3c;
+}
+.s-data-row .danger:active {
+    background: #fde8e8;
+}
+.s-data-row .primary {
+    color: #1a73e8;
+}
+.s-data-row .primary:active {
+    background: #e8f0fe;
+}
+.s-save-btn {
+    width: 100%;
+    padding: 14px;
+    background: #1a73e8;
+    color: #fff;
+    border-radius: 10px;
+    font-size: 17px;
+    font-weight: 600;
+    border: none;
+    font-family: inherit;
+    transition: background 0.2s;
+    margin-top: 12px;
+}
+.s-save-btn:active {
+    background: #1557b0;
+}
+
+/* ===== 确认弹窗 ===== */
+#confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 300;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+}
+#confirm-overlay.open {
+    display: flex;
+}
+#confirm-box {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px 28px 24px;
+    max-width: 340px;
+    width: 90%;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+    text-align: center;
+}
+#confirm-box .c-icon {
+    font-size: 44px;
+    margin-bottom: 10px;
+}
+#confirm-box .c-title {
+    font-size: 19px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #1a1a1a;
+}
+#confirm-box .c-desc {
+    font-size: 15px;
+    color: #666;
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+#confirm-box .c-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+#confirm-box .c-actions button {
+    padding: 10px 32px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    border: none;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+#confirm-box .c-actions .c-cancel {
+    background: #f1f3f4;
+    color: #333;
+}
+#confirm-box .c-actions .c-cancel:active {
+    background: #d0d0d0;
+}
+#confirm-box .c-actions .c-confirm {
+    background: #e74c3c;
+    color: #fff;
+}
+#confirm-box .c-actions .c-confirm:active {
+    background: #c0392b;
+}
+
+/* ===== Toast ===== */
+.custom-toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) scale(0.9);
+    background: rgba(0, 0, 0, 0.78);
+    color: #fff;
+    padding: 12px 26px;
+    border-radius: 22px;
+    font-size: 15px;
+    z-index: 400;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+    font-family: system-ui, -apple-system, sans-serif;
+    text-align: center;
+    max-width: 85vw;
+    backdrop-filter: blur(4px);
+}
+.custom-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+}
+
+/* ===== 高亮 ===== */
+.msg-item.highlighted .msg-bubble {
+    background-color: #ffeb3b !important;
+    transition: background-color 0.5s ease;
+}
+@keyframes highlight-pulse {
+    0%, 100% { background-color: #ffeb3b; }
+    50% { background-color: #fff9cc; }
+}
+.msg-item.highlighted .msg-bubble {
+    animation: highlight-pulse 0.8s ease 2;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 600px) {
+    #header {
+        padding: 8px 10px 6px 10px;
+    }
+    #top-row {
+        padding: 0 0 10px 0;
+        min-height: 34px;
+    }
+    #title {
+        font-size: 18px;
+        margin: 0 8px;
+    }
+    #top-row .icon-btn {
+        width: 30px;
+        height: 30px;
+    }
+    #top-row .icon-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+    #search-input {
+        font-size: 14px;
+        padding: 5px 28px 5px 12px;
+        height: 30px;
+    }
+    #messages-container {
+        padding: 8px 6px 6px 6px;
+    }
+    .msg-row {
+        max-width: 94%;
+    }
+    .msg-bubble {
+        font-size: 15px;
+        padding: 8px 12px;
+    }
+    .msg-header {
+        font-size: 12px;
+    }
+    .msg-header .mname {
+        font-size: 14px;
+    }
+    .msg-header .mtime {
+        font-size: 11px;
+    }
+    .msg-avatar {
+        width: 34px;
+        height: 34px;
+    }
+    .msg-action-btn {
+        width: 28px;
+        height: 28px;
+    }
+    .msg-action-btn svg {
+        width: 17px;
+        height: 17px;
+    }
+    #footer {
+        font-size: 13px;
+        padding: 6px 12px;
+    }
+    #settings-panel {
+        padding: 18px 18px 24px;
+        max-width: 100%;
+    }
+    #upload-zone .icon {
+        font-size: 60px;
+    }
+    #upload-zone .upload-btn {
+        font-size: 18px;
+        padding: 14px 36px;
+    }
+    #calendar-panel {
+        padding: 16px 18px 20px;
+        width: 95%;
+    }
+    #month-picker {
+        padding: 16px 18px 20px;
+        width: 88%;
+    }
+    .s-avatar-group {
+        gap: 16px;
+    }
+    .s-avatar-item {
+        min-width: 100px;
+    }
+    .s-avatar-row .preview {
+        width: 40px;
+        height: 40px;
+    }
+    .s-row-inline label {
+        min-width: 60px;
+        font-size: 13px;
+    }
+    .s-row-inline input[type="text"] {
+        font-size: 14px;
+        padding: 6px 10px;
+    }
+    .s-save-btn {
+        font-size: 17px;
+        padding: 12px;
+    }
+    #confirm-box {
+        padding: 24px 20px 20px;
+    }
+    #confirm-box .c-icon {
+        font-size: 36px;
+    }
+    .sd-item .sd-top {
+        font-size: 14px;
+    }
+    .sd-item .sd-name {
+        font-size: 14px;
+    }
+    .sd-item .sd-preview {
+        font-size: 14px;
+    }
+    .sd-item {
+        padding: 10px 14px;
+    }
+}
+@media (max-width: 400px) {
+    #title {
+        font-size: 16px;
+        margin: 0 6px;
+    }
+    #top-row .icon-btn {
+        width: 28px;
+        height: 28px;
+    }
+    #top-row .icon-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+    #search-input {
+        font-size: 13px;
+        padding: 4px 24px 4px 10px;
+        height: 28px;
+    }
+    .msg-bubble {
+        font-size: 14px;
+        padding: 6px 10px;
+    }
+    .msg-header .mname {
+        font-size: 13px;
+    }
+    .msg-header .mtime {
+        font-size: 10px;
+    }
+    .msg-avatar {
+        width: 30px;
+        height: 30px;
+    }
+    .msg-action-btn {
+        width: 24px;
+        height: 24px;
+    }
+    .msg-action-btn svg {
+        width: 15px;
+        height: 15px;
+    }
+    #upload-zone .upload-btn {
+        font-size: 16px;
+        padding: 12px 28px;
+    }
+    .sd-item .sd-top {
+        font-size: 13px;
+    }
+    .sd-item .sd-name {
+        font-size: 13px;
+    }
+    .sd-item .sd-preview {
+        font-size: 13px;
+    }
+    .sd-item {
+        padding: 8px 12px;
+    }
+    .s-row-inline label {
+        min-width: 50px;
+        font-size: 12px;
+    }
+    .s-row-inline input[type="text"] {
+        font-size: 13px;
+        padding: 5px 8px;
+    }
+    .s-avatar-item {
+        min-width: 80px;
+    }
+    .s-avatar-row .preview {
+        width: 36px;
+        height: 36px;
+    }
+}
+```
+
+
+## 3. app.js
+
+```javascript
 (function() {
     'use strict';
 
@@ -446,15 +1901,17 @@
     function estimateItemHeight(msg) {
         const text = msg._text || '';
         const charCount = text.length;
-        let baseHeight = 38;
+        // 固定部分：头像 + 名称行 + 内边距
+        let baseHeight = 44;
+        // 气泡高度：每行20px，每行最多18个字符
         const lineWidth = 18;
-        const lineHeight = 20;
         const lines = Math.max(1, Math.ceil(charCount / lineWidth));
-        const bubbleHeight = lines * lineHeight + 8;
+        const bubbleHeight = lines * 20 + 12;
         baseHeight += bubbleHeight;
-        baseHeight += 22;
-        baseHeight += 4;
-        return Math.max(90, baseHeight);
+        // 按钮区域 + 底部间距（固定8px）
+        baseHeight += 28;
+        // 安全余量
+        return Math.max(100, baseHeight + 4);
     }
 
     function buildHeightCache() {
@@ -1407,7 +2864,6 @@
         if (this.files && this.files[0]) {
             try {
                 settings.bgImage = await imageToBase64(this.files[0]);
-                // 立即应用到聊天背景
                 messagesContainer.style.backgroundImage = 'url(' + settings.bgImage + ')';
             } catch (err) { showToast('❌ 图片读取失败'); }
         }
@@ -1564,3 +3020,4 @@
     init();
 
 })();
+```
