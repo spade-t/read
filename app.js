@@ -42,6 +42,15 @@
     const confirmOk = $('confirm-ok');
     const confirmCancel = $('confirm-cancel');
 
+    const calendarBtn = $('calendar-btn');
+    const calendarOverlay = $('calendar-overlay');
+    const calendarClose = $('calendar-close');
+    const calendarMonth = $('calendar-month');
+    const calendarDays = $('calendar-days');
+    const calendarPrev = $('calendar-prev');
+    const calendarNext = $('calendar-next');
+    const calendarToday = $('calendar-today');
+
     // ===== 全局状态 =====
     const DB_NAME = 'ChatViewerDB';
     const STORE_NAME = 'messages';
@@ -75,6 +84,11 @@
     let searchMatchCache = [];
     let searchDisplayCount = 50;
     const SEARCH_BATCH_SIZE = 50;
+
+    // 日历状态
+    let calendarYear = 2026;
+    let calendarMonth = 8; // 0-based
+    let messageDateMap = {};
 
     // ===== 工具函数 =====
 
@@ -162,6 +176,24 @@
         } catch (e) {
             return 0;
         }
+    }
+
+    // ===== SVG 图标 =====
+
+    function getCopyIcon() {
+        return `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+    }
+
+    function getDeleteIcon() {
+        return `<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
+    }
+
+    function getSettingsIcon() {
+        return `<svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    }
+
+    function getCalendarIcon() {
+        return `<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg>`;
     }
 
     // ===== 消息文本提取 =====
@@ -408,16 +440,6 @@
         return result;
     }
 
-    // ===== SVG 图标 =====
-
-    function getCopyIcon() {
-        return `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
-    }
-
-    function getDeleteIcon() {
-        return `<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
-    }
-
     // ===== 虚拟滚动 =====
 
     function estimateItemHeight(msg) {
@@ -428,8 +450,8 @@
         const lines = Math.max(1, Math.ceil(charCount / lineWidth));
         const bubbleHeight = lines * 22 + 16;
         baseHeight += bubbleHeight;
-        baseHeight += 28;
-        return Math.max(120, baseHeight);
+        baseHeight += 24;
+        return Math.max(110, baseHeight);
     }
 
     function buildHeightCache() {
@@ -502,7 +524,6 @@
         item.style.right = '0';
         item.style.top = itemOffsets[index] + 'px';
         item.style.height = itemHeights[index] + 'px';
-        item.style.paddingBottom = '0px';
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -762,7 +783,6 @@
         renderSearchResults();
     }
 
-    // ===== 生成搜索预览 - 限制20个字符 =====
     function generateSearchPreview(fullText, keyword) {
         if (!fullText) return '';
         if (!keyword) return escapeHtml(fullText);
@@ -778,11 +798,9 @@
         const kwLen = keyword.length;
         const textLen = fullText.length;
 
-        // 关键词前后各保留的字符数（总长度控制在20以内）
         const MAX_TOTAL = 20;
         const half = Math.floor((MAX_TOTAL - kwLen) / 2);
 
-        // 如果文本很短，完整显示
         if (textLen <= MAX_TOTAL) {
             const before = escapeHtml(fullText.substring(0, keywordIndex));
             const hit = escapeHtml(fullText.substring(keywordIndex, keywordIndex + kwLen));
@@ -790,20 +808,16 @@
             return before + '<em>' + hit + '</em>' + after;
         }
 
-        // 计算截取范围
         let start = Math.max(0, keywordIndex - half);
         let end = Math.min(textLen, keywordIndex + kwLen + half);
 
-        // 如果总长度超过20，微调
         let totalLen = end - start;
         if (totalLen > MAX_TOTAL) {
             const adjust = totalLen - MAX_TOTAL;
             start = Math.min(start + adjust, keywordIndex);
         }
 
-        // 如果前面还有内容，加 '...'
         const hasPrefix = start > 0;
-        // 如果后面还有内容，加 '...'
         const hasSuffix = end < textLen;
 
         let snippet = fullText.substring(start, end);
@@ -822,7 +836,6 @@
         return result;
     }
 
-    // ===== 渲染搜索结果 =====
     function renderSearchResults() {
         const total = searchMatchCache.length;
 
@@ -864,7 +877,6 @@
         searchDropdown.innerHTML = html;
         searchDropdown.classList.add('show');
 
-        // 绑定点击事件
         searchDropdown.querySelectorAll('.sd-item').forEach(el => {
             el.addEventListener('click', function() {
                 const idx = parseInt(this.dataset.index);
@@ -889,6 +901,84 @@
                 renderSearchResults();
             });
         }
+    }
+
+    // ===== 日历功能 =====
+
+    function buildDateMap() {
+        messageDateMap = {};
+        for (const msg of allMessages) {
+            if (msg.create_time) {
+                const d = new Date(msg.create_time);
+                const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                if (!messageDateMap[key]) {
+                    messageDateMap[key] = [];
+                }
+                messageDateMap[key].push(msg);
+            }
+        }
+    }
+
+    function renderCalendar(year, month) {
+        const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+        calendarMonth.textContent = year + '年 ' + monthNames[month];
+
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date();
+        const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+
+        let html = '';
+
+        // 填充空白
+        for (let i = 0; i < firstDay; i++) {
+            html += '<div class="cal-day empty"></div>';
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+            const hasMsg = messageDateMap[dateStr] && messageDateMap[dateStr].length > 0;
+            const isToday = dateStr === todayStr;
+
+            let cls = 'cal-day';
+            if (isToday) cls += ' today';
+            else if (hasMsg) cls += ' has-msg';
+
+            html += '<button class="' + cls + '" data-date="' + dateStr + '"' +
+                (hasMsg ? '' : ' disabled') + '>' + d + '</button>';
+        }
+
+        calendarDays.innerHTML = html;
+
+        // 绑定点击事件
+        calendarDays.querySelectorAll('.cal-day.has-msg').forEach(el => {
+            el.addEventListener('click', function() {
+                const dateStr = this.dataset.date;
+                const msgs = messageDateMap[dateStr] || [];
+                if (msgs.length > 0) {
+                    const firstMsg = msgs[0];
+                    const idx = allMessages.indexOf(firstMsg);
+                    if (idx >= 0) {
+                        calendarOverlay.classList.remove('open');
+                        jumpToMessage(idx);
+                        showToast('📅 跳转到 ' + dateStr);
+                    }
+                }
+            });
+        });
+    }
+
+    function openCalendar() {
+        const now = new Date();
+        calendarYear = now.getFullYear();
+        calendarMonth = now.getMonth();
+        buildDateMap();
+        renderCalendar(calendarYear, calendarMonth);
+        calendarOverlay.classList.add('open');
+    }
+
+    function closeCalendar() {
+        calendarOverlay.classList.remove('open');
     }
 
     // ===== 导出MD =====
@@ -954,7 +1044,7 @@
 
     function applySettings() {
         const botName = settings.botName || 'Bot';
-        title.textContent = '与 ' + botName + ' 的对话';
+        title.textContent = '与 ' + botName + ' 的回忆录';
 
         if (settings.bgImage) {
             messagesContainer.style.backgroundImage = 'url(' + settings.bgImage + ')';
@@ -1171,7 +1261,7 @@
         settings.botName = sBotName.value.trim() || 'Bot';
         try {
             await saveSettingsToDB(settings);
-            title.textContent = '与 ' + settings.botName + ' 的对话';
+            title.textContent = '与 ' + settings.botName + ' 的回忆录';
             if (isDataLoaded && allMessages.length > 0) {
                 fullRebuild();
             }
@@ -1256,6 +1346,54 @@
         confirmCancel.addEventListener('click', cancelHandler);
     });
 
+    // ===== 日历事件 =====
+    calendarBtn.innerHTML = getCalendarIcon();
+    calendarBtn.addEventListener('click', openCalendar);
+
+    calendarClose.addEventListener('click', closeCalendar);
+    calendarOverlay.addEventListener('click', function(e) {
+        if (e.target === this) closeCalendar();
+    });
+
+    calendarPrev.addEventListener('click', function() {
+        calendarMonth--;
+        if (calendarMonth < 0) {
+            calendarMonth = 11;
+            calendarYear--;
+        }
+        renderCalendar(calendarYear, calendarMonth);
+    });
+
+    calendarNext.addEventListener('click', function() {
+        calendarMonth++;
+        if (calendarMonth > 11) {
+            calendarMonth = 0;
+            calendarYear++;
+        }
+        renderCalendar(calendarYear, calendarMonth);
+    });
+
+    calendarToday.addEventListener('click', function() {
+        const now = new Date();
+        calendarYear = now.getFullYear();
+        calendarMonth = now.getMonth();
+        renderCalendar(calendarYear, calendarMonth);
+        // 跳转到今天的消息
+        const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const msgs = messageDateMap[todayStr] || [];
+        if (msgs.length > 0) {
+            const firstMsg = msgs[0];
+            const idx = allMessages.indexOf(firstMsg);
+            if (idx >= 0) {
+                calendarOverlay.classList.remove('open');
+                jumpToMessage(idx);
+                showToast('📅 跳转到今天');
+            }
+        } else {
+            showToast('今天没有聊天记录');
+        }
+    });
+
     // ===== 滚动事件 =====
     messagesContainer.addEventListener('scroll', function() {
         if (!isDataLoaded || allMessages.length === 0) return;
@@ -1292,6 +1430,10 @@
     async function init() {
         await loadSettings();
         setupMessageEvents();
+
+        // 设置日历图标
+        calendarBtn.innerHTML = getCalendarIcon();
+
         const hasData = await loadDataFromDB();
         if (!hasData) {
             showUploadView();
