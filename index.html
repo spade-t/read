@@ -11,8 +11,12 @@
     <div id="app">
         <!-- ===== 顶部 ===== -->
         <header id="header">
-            <div id="title-row">
+            <div id="top-row">
                 <span id="title">与 Bot 的回忆录</span>
+                <div id="top-icons">
+                    <button class="icon-btn calendar-btn" id="calendar-btn" aria-label="日历"></button>
+                    <button class="icon-btn settings-btn" id="settings-btn" aria-label="设置"></button>
+                </div>
             </div>
             <div id="search-row">
                 <div id="search-wrap">
@@ -20,8 +24,6 @@
                     <button id="search-clear" aria-label="清除搜索">✕</button>
                     <div id="search-dropdown"></div>
                 </div>
-                <button class="icon-btn calendar-btn" id="calendar-btn" aria-label="日历"></button>
-                <button class="icon-btn settings-btn" id="settings-btn" aria-label="设置"></button>
             </div>
         </header>
 
@@ -29,7 +31,7 @@
         <div id="calendar-overlay">
             <div id="calendar-panel">
                 <div class="cal-header">
-                    <span class="cal-month" id="calendar-month">2026年 八月</span>
+                    <span class="cal-month" id="calendar-month">2026年 八月 ▼</span>
                     <div class="cal-nav">
                         <button id="calendar-prev">◀</button>
                         <button id="calendar-next">▶</button>
@@ -92,24 +94,26 @@
             <div class="s-group">
                 <div class="s-title">头像</div>
                 <hr class="s-divider">
-                <div class="s-row">
-                    <label>我的头像</label>
-                    <div class="s-avatar-row">
-                        <img id="s-user-avatar-preview" class="preview" src="" alt="">
-                        <span class="file-input-wrap">
-                            <span class="file-btn">选择图片</span>
-                            <input type="file" id="s-user-avatar-input" accept="image/*">
-                        </span>
+                <div class="s-avatar-group">
+                    <div class="s-avatar-item">
+                        <label>我的头像</label>
+                        <div class="s-avatar-row">
+                            <img id="s-user-avatar-preview" class="preview" src="" alt="">
+                            <span class="file-input-wrap">
+                                <span class="file-btn">选择图片</span>
+                                <input type="file" id="s-user-avatar-input" accept="image/*">
+                            </span>
+                        </div>
                     </div>
-                </div>
-                <div class="s-row">
-                    <label>Bot 头像</label>
-                    <div class="s-avatar-row">
-                        <img id="s-bot-avatar-preview" class="preview" src="" alt="">
-                        <span class="file-input-wrap">
-                            <span class="file-btn">选择图片</span>
-                            <input type="file" id="s-bot-avatar-input" accept="image/*">
-                        </span>
+                    <div class="s-avatar-item">
+                        <label>Bot 头像</label>
+                        <div class="s-avatar-row">
+                            <img id="s-bot-avatar-preview" class="preview" src="" alt="">
+                            <span class="file-input-wrap">
+                                <span class="file-btn">选择图片</span>
+                                <input type="file" id="s-bot-avatar-input" accept="image/*">
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
