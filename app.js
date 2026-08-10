@@ -87,7 +87,7 @@
 
     // 日历状态
     let calendarYear = 2026;
-    let calendarMonth = 8; // 0-based
+    let calendarMonthIndex = 8;
     let messageDateMap = {};
 
     // ===== 工具函数 =====
@@ -930,7 +930,6 @@
 
         let html = '';
 
-        // 填充空白
         for (let i = 0; i < firstDay; i++) {
             html += '<div class="cal-day empty"></div>';
         }
@@ -950,7 +949,6 @@
 
         calendarDays.innerHTML = html;
 
-        // 绑定点击事件
         calendarDays.querySelectorAll('.cal-day.has-msg').forEach(el => {
             el.addEventListener('click', function() {
                 const dateStr = this.dataset.date;
@@ -971,9 +969,9 @@
     function openCalendar() {
         const now = new Date();
         calendarYear = now.getFullYear();
-        calendarMonth = now.getMonth();
+        calendarMonthIndex = now.getMonth();
         buildDateMap();
-        renderCalendar(calendarYear, calendarMonth);
+        renderCalendar(calendarYear, calendarMonthIndex);
         calendarOverlay.classList.add('open');
     }
 
@@ -1347,7 +1345,9 @@
     });
 
     // ===== 日历事件 =====
+    // 设置日历图标
     calendarBtn.innerHTML = getCalendarIcon();
+
     calendarBtn.addEventListener('click', openCalendar);
 
     calendarClose.addEventListener('click', closeCalendar);
@@ -1356,29 +1356,28 @@
     });
 
     calendarPrev.addEventListener('click', function() {
-        calendarMonth--;
-        if (calendarMonth < 0) {
-            calendarMonth = 11;
+        calendarMonthIndex--;
+        if (calendarMonthIndex < 0) {
+            calendarMonthIndex = 11;
             calendarYear--;
         }
-        renderCalendar(calendarYear, calendarMonth);
+        renderCalendar(calendarYear, calendarMonthIndex);
     });
 
     calendarNext.addEventListener('click', function() {
-        calendarMonth++;
-        if (calendarMonth > 11) {
-            calendarMonth = 0;
+        calendarMonthIndex++;
+        if (calendarMonthIndex > 11) {
+            calendarMonthIndex = 0;
             calendarYear++;
         }
-        renderCalendar(calendarYear, calendarMonth);
+        renderCalendar(calendarYear, calendarMonthIndex);
     });
 
     calendarToday.addEventListener('click', function() {
         const now = new Date();
         calendarYear = now.getFullYear();
-        calendarMonth = now.getMonth();
-        renderCalendar(calendarYear, calendarMonth);
-        // 跳转到今天的消息
+        calendarMonthIndex = now.getMonth();
+        renderCalendar(calendarYear, calendarMonthIndex);
         const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
         const msgs = messageDateMap[todayStr] || [];
         if (msgs.length > 0) {
@@ -1393,6 +1392,9 @@
             showToast('今天没有聊天记录');
         }
     });
+
+    // ===== 设置图标 =====
+    settingsBtn.innerHTML = getSettingsIcon();
 
     // ===== 滚动事件 =====
     messagesContainer.addEventListener('scroll', function() {
@@ -1431,8 +1433,8 @@
         await loadSettings();
         setupMessageEvents();
 
-        // 设置日历图标
-        calendarBtn.innerHTML = getCalendarIcon();
+        // 设置设置图标
+        settingsBtn.innerHTML = getSettingsIcon();
 
         const hasData = await loadDataFromDB();
         if (!hasData) {
