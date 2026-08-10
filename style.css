@@ -57,11 +57,14 @@ input[type="file"] {
     padding: 12px 14px 10px 14px;
     position: relative;
 }
-#title-row {
+
+/* 第一行：标题 + 图标 */
+#top-row {
     display: flex;
-    justify-content: center;
     align-items: center;
-    padding: 0 0 10px 0;
+    justify-content: center;
+    position: relative;
+    padding: 0 0 12px 0;
 }
 #title {
     font-size: 20px;
@@ -71,12 +74,22 @@ input[type="file"] {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 90vw;
+    max-width: 70%;
 }
+#top-icons {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* 第二行：搜索框 */
 #search-row {
     display: flex;
     align-items: center;
-    gap: 8px;
     width: 100%;
 }
 #search-wrap {
@@ -138,8 +151,8 @@ input[type="file"] {
     flex-shrink: 0;
 }
 .icon-btn svg {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     stroke: currentColor;
     stroke-width: 2;
     fill: none;
@@ -189,6 +202,7 @@ input[type="file"] {
     padding: 4px 8px;
     border-radius: 6px;
     transition: background 0.15s;
+    user-select: none;
 }
 #calendar-panel .cal-header .cal-month:active {
     background: #f0f0f0;
@@ -850,10 +864,27 @@ input[type="file"] {
     border-color: #1a73e8;
 }
 
+/* 头像并排 */
+.s-avatar-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px 30px;
+}
+.s-avatar-item {
+    flex: 1;
+    min-width: 140px;
+}
+.s-avatar-item label {
+    font-size: 14px;
+    color: #555;
+    font-weight: 500;
+    display: block;
+    margin-bottom: 6px;
+}
 .s-avatar-row {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     flex-wrap: wrap;
 }
 .s-avatar-row .preview {
@@ -1053,24 +1084,28 @@ input[type="file"] {
     #header {
         padding: 8px 10px 6px 10px;
     }
-    #title-row {
-        padding: 0 0 6px 0;
+    #top-row {
+        padding: 0 0 10px 0;
     }
     #title {
         font-size: 18px;
+        max-width: 65%;
     }
-    #search-input {
-        font-size: 14px;
-        padding: 5px 28px 5px 12px;
-        height: 30px;
+    #top-icons {
+        gap: 2px;
     }
     .icon-btn {
         width: 30px;
         height: 30px;
     }
     .icon-btn svg {
-        width: 18px;
-        height: 18px;
+        width: 20px;
+        height: 20px;
+    }
+    #search-input {
+        font-size: 14px;
+        padding: 5px 28px 5px 12px;
+        height: 30px;
     }
     #messages-container {
         padding: 8px 6px 6px 6px;
@@ -1126,6 +1161,12 @@ input[type="file"] {
         padding: 16px 18px 20px;
         width: 88%;
     }
+    .s-avatar-group {
+        gap: 16px;
+    }
+    .s-avatar-item {
+        min-width: 100px;
+    }
     .s-avatar-row .preview {
         width: 40px;
         height: 40px;
@@ -1164,6 +1205,7 @@ input[type="file"] {
 @media (max-width: 400px) {
     #title {
         font-size: 16px;
+        max-width: 60%;
     }
     #search-input {
         font-size: 13px;
@@ -1175,8 +1217,8 @@ input[type="file"] {
         height: 28px;
     }
     .icon-btn svg {
-        width: 16px;
-        height: 16px;
+        width: 18px;
+        height: 18px;
     }
     .msg-bubble {
         font-size: 14px;
@@ -1223,5 +1265,12 @@ input[type="file"] {
     .s-row-inline input[type="text"] {
         font-size: 13px;
         padding: 5px 8px;
+    }
+    .s-avatar-item {
+        min-width: 80px;
+    }
+    .s-avatar-row .preview {
+        width: 36px;
+        height: 36px;
     }
 }
