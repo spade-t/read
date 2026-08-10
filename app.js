@@ -29,7 +29,6 @@
     const sBgInput = $('s-bg-input');
     const sUserAvatarPreview = $('s-user-avatar-preview');
     const sBotAvatarPreview = $('s-bot-avatar-preview');
-    const sDarkMode = $('s-dark-mode');
     const sSave = $('s-save');
     const sUploadJson = $('s-upload-json');
     const sExportMd = $('s-export-md');
@@ -48,6 +47,9 @@
     const calendarDays = $('calendar-days');
     const calendarPrev = $('calendar-prev');
     const calendarNext = $('calendar-next');
+
+    // 主题按钮
+    const themeBtns = document.querySelectorAll('.theme-btn');
 
     // ===== 全局状态 =====
     const DB_NAME = 'ChatViewerDB';
@@ -454,8 +456,19 @@
         } else {
             document.body.classList.remove('dark-mode');
         }
-        sDarkMode.checked = enabled;
         settings.darkMode = enabled;
+
+        // 更新主题按钮高亮
+        themeBtns.forEach(btn => {
+            const theme = btn.dataset.theme;
+            if (theme === 'dark' && enabled) {
+                btn.classList.add('active');
+            } else if (theme === 'light' && !enabled) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
     }
 
     // ===== 虚拟滚动 =====
@@ -602,9 +615,8 @@
         row.appendChild(body);
         item.appendChild(row);
 
-        // 点击消息选中（只有点击到 .msg-item 本身才触发，按钮事件在委托中处理）
+        // 点击消息选中
         item.addEventListener('click', function(e) {
-            // 如果点击的是按钮，不处理选中
             if (e.target.closest('.msg-action-btn')) return;
             const idx = parseInt(this.dataset.index);
             if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
@@ -745,7 +757,6 @@
 
     // ===== 消息事件委托 =====
     function setupMessageEvents() {
-        // 使用 capture 阶段优先处理按钮点击
         messagesContainer.addEventListener('click', function(e) {
             const btn = e.target.closest('.msg-action-btn');
             if (btn) {
@@ -773,7 +784,6 @@
                 return;
             }
 
-            // 点击空白取消选中
             if (e.target === messagesContainer || e.target.id === 'scroll-viewport' || e.target === document.body) {
                 if (selectedIndex !== -1) {
                     selectedIndex = -1;
@@ -1212,7 +1222,6 @@
         sBotName.value = settings.botName || '';
         sUserAvatarPreview.src = settings.userAvatar || '';
         sBotAvatarPreview.src = settings.botAvatar || '';
-        sDarkMode.checked = settings.darkMode || false;
         applyDarkMode(settings.darkMode || false);
 
         if (isDataLoaded && allMessages.length > 0) {
@@ -1340,7 +1349,17 @@
         sBotName.value = settings.botName || '';
         sUserAvatarPreview.src = settings.userAvatar || '';
         sBotAvatarPreview.src = settings.botAvatar || '';
-        sDarkMode.checked = settings.darkMode || false;
+        // 更新主题按钮状态
+        themeBtns.forEach(btn => {
+            const theme = btn.dataset.theme;
+            if (theme === 'dark' && settings.darkMode) {
+                btn.classList.add('active');
+            } else if (theme === 'light' && !settings.darkMode) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
     }
 
     function closeSettings() {
@@ -1415,7 +1434,7 @@
     sSave.addEventListener('click', async function() {
         settings.userName = sUserName.value.trim() || '我';
         settings.botName = sBotName.value.trim() || 'Bot';
-        settings.darkMode = sDarkMode.checked;
+        settings.darkMode = document.body.classList.contains('dark-mode');
         try {
             await saveSettingsToDB(settings);
             applySettings();
@@ -1426,9 +1445,14 @@
         }
     });
 
-    // 深色模式开关实时切换
-    sDarkMode.addEventListener('change', function() {
-        applyDarkMode(this.checked);
+    // 主题按钮点击
+    themeBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const theme = this.dataset.theme;
+            const isDark = theme === 'dark';
+            applyDarkMode(isDark);
+            // 保存到 settings（但保存到 DB 由保存按钮统一处理）
+        });
     });
 
     sUserAvatarInput.addEventListener('change', async function() {
@@ -1589,6 +1613,17 @@
 
         settingsBtn.innerHTML = getSettingsIcon();
         calendarBtn.innerHTML = getCalendarIcon();
+
+        // 设置初始主题按钮高亮
+        const isDark = settings.darkMode || false;
+        themeBtns.forEach(btn => {
+            const theme = btn.dataset.theme;
+            if (theme === 'dark' && isDark) {
+                btn.classList.add('active');
+            } else if (theme === 'light' && !isDark) {
+                btn.classList.add('active');
+            }
+        });
 
         const hasData = await loadDataFromDB();
         if (!hasData) {
