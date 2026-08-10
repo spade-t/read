@@ -16,7 +16,7 @@
             </div>
             <div id="search-row">
                 <div id="search-wrap">
-                    <input type="text" id="search-input" placeholder="搜索消息..." autocomplete="off">
+                    <input type="text" id="search-input" placeholder="搜索" autocomplete="off">
                     <button id="search-clear" aria-label="清除搜索">✕</button>
                     <div id="search-dropdown"></div>
                 </div>
@@ -83,11 +83,11 @@
             <div class="s-group">
                 <div class="s-title">名称</div>
                 <hr class="s-divider">
-                <div class="s-row">
+                <div class="s-row s-row-inline">
                     <label>我的名称</label>
                     <input type="text" id="s-user-name" placeholder="">
                 </div>
-                <div class="s-row">
+                <div class="s-row s-row-inline">
                     <label>Bot 名称</label>
                     <input type="text" id="s-bot-name" placeholder="">
                 </div>
@@ -99,7 +99,7 @@
                 <div class="s-row">
                     <label>我的头像</label>
                     <div class="s-avatar-row">
-                        <img id="s-user-avatar-preview" class="preview" src="" alt="预览">
+                        <img id="s-user-avatar-preview" class="preview" src="" alt="">
                         <span class="file-input-wrap">
                             <span class="file-btn">选择图片</span>
                             <input type="file" id="s-user-avatar-input" accept="image/*">
@@ -109,7 +109,7 @@
                 <div class="s-row">
                     <label>Bot 头像</label>
                     <div class="s-avatar-row">
-                        <img id="s-bot-avatar-preview" class="preview" src="" alt="预览">
+                        <img id="s-bot-avatar-preview" class="preview" src="" alt="">
                         <span class="file-input-wrap">
                             <span class="file-btn">选择图片</span>
                             <input type="file" id="s-bot-avatar-input" accept="image/*">
@@ -123,8 +123,7 @@
                 <hr class="s-divider">
                 <div class="s-row">
                     <label>背景图片</label>
-                    <div class="s-avatar-row">
-                        <img id="s-bg-preview" class="preview bg-preview" src="" alt="背景预览">
+                    <div class="s-bg-row">
                         <span class="file-input-wrap">
                             <span class="file-btn">选择图片</span>
                             <input type="file" id="s-bg-input" accept="image/*">
