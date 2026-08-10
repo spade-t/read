@@ -120,7 +120,6 @@
                 <div class="s-title">聊天背景</div>
                 <hr class="s-divider">
                 <div class="s-row">
-                    <label>背景图片</label>
                     <div class="s-avatar-row">
                         <span class="file-input-wrap">
                             <span class="file-btn">选择图片</span>
@@ -133,12 +132,9 @@
             <div class="s-group">
                 <div class="s-title">外观</div>
                 <hr class="s-divider">
-                <div class="s-row s-row-inline">
-                    <label>深色模式</label>
-                    <div class="toggle-switch">
-                        <input type="checkbox" id="s-dark-mode">
-                        <label for="s-dark-mode" class="toggle-slider"></label>
-                    </div>
+                <div class="s-theme-row">
+                    <button class="theme-btn" data-theme="light">浅色模式</button>
+                    <button class="theme-btn" data-theme="dark">深色模式</button>
                 </div>
             </div>
 
@@ -150,7 +146,7 @@
                     <button id="s-export-md" class="primary">导出MD</button>
                     <button id="s-clear-data" class="danger">清空所有数据</button>
                 </div>
-                <div style="font-size:13px;color:#888;margin-top:10px;" id="s-data-size">数据大小: 0 MB</div>
+                <div style="font-size:13px;color:var(--text-secondary);margin-top:10px;" id="s-data-size">数据大小: 0 MB</div>
             </div>
 
             <button class="s-save-btn" id="s-save">保存设置</button>
