@@ -152,12 +152,6 @@ input[type="file"] {
 .icon-btn.settings-btn {
     color: #555;
 }
-.icon-btn.calendar-btn:active {
-    background: #e8eaed;
-}
-.icon-btn.settings-btn:active {
-    background: #e8eaed;
-}
 
 /* ===== 日历面板 ===== */
 #calendar-overlay {
