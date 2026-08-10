@@ -47,7 +47,6 @@
     const calendarDays = $('calendar-days');
     const calendarPrev = $('calendar-prev');
     const calendarNext = $('calendar-next');
-    const calendarToday = $('calendar-today');
 
     // ===== 全局状态 =====
     const DB_NAME = 'ChatViewerDB';
@@ -88,6 +87,9 @@
     let calendarMonthIndex = 8;
     let messageDateMap = {};
     let maxDateStr = '';
+    let maxYear = 2026;
+    let maxMonth = 7;
+    let maxDay = 31;
 
     // ===== 工具函数 =====
 
@@ -444,14 +446,20 @@
     function estimateItemHeight(msg) {
         const text = msg._text || '';
         const charCount = text.length;
-        let baseHeight = 52;
-        const lineWidth = 22;
+        // 基础高度：头像 + 名称行 + 顶部留白
+        let baseHeight = 55;
+        // 气泡高度：根据字符数估算
+        const lineWidth = 20;
+        const lineHeight = 24;
         const lines = Math.max(1, Math.ceil(charCount / lineWidth));
-        const bubbleHeight = lines * 22 + 16;
+        const bubbleHeight = lines * lineHeight + 14;
         baseHeight += bubbleHeight;
-        baseHeight += 30;
-        baseHeight += 16;
-        return Math.max(130, baseHeight);
+        // 按钮区域
+        baseHeight += 32;
+        // 微信风格间距：固定 18px
+        baseHeight += 18;
+        // 安全余量
+        return Math.max(145, baseHeight + 8);
     }
 
     function buildHeightCache() {
@@ -921,23 +929,34 @@
                 }
             }
         }
+        if (maxDateStr) {
+            const parts = maxDateStr.split('-').map(Number);
+            maxYear = parts[0];
+            maxMonth = parts[1];
+            maxDay = parts[2];
+        }
     }
 
     function renderCalendar(year, month) {
         const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
         calendarMonth.textContent = year + '年 ' + monthNames[month];
 
+        // 如果当前月份超出最大月份，不显示任何日期
+        const isMonthAfterMax = (year > maxYear) || (year === maxYear && (month + 1) > maxMonth);
+
         const firstDay = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const today = new Date();
         const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
 
-        const maxParts = maxDateStr ? maxDateStr.split('-').map(Number) : [year, month + 1, 0];
-        const maxYear = maxParts[0] || year;
-        const maxMonth = maxParts[1] || (month + 1);
-        const maxDay = maxParts[2] || 0;
-
         let html = '';
+
+        if (isMonthAfterMax) {
+            // 超出最大月份，显示提示信息
+            html = '<div style="grid-column:1/-1;text-align:center;padding:30px 0;color:#ccc;font-size:14px;">📭 没有聊天记录</div>';
+            calendarDays.innerHTML = html;
+            return;
+        }
 
         for (let i = 0; i < firstDay; i++) {
             html += '<div class="cal-day empty"></div>';
@@ -948,14 +967,10 @@
             const hasMsg = messageDateMap[dateStr] && messageDateMap[dateStr].length > 0;
             const isToday = dateStr === todayStr;
 
+            // 判断是否超出最大日期（同月内）
             let isDisabled = false;
-            if (maxDateStr) {
-                const yearCompare = year > maxYear;
-                const monthCompare = year === maxYear && (month + 1) > maxMonth;
-                const dayCompare = year === maxYear && (month + 1) === maxMonth && d > maxDay;
-                if (yearCompare || monthCompare || dayCompare) {
-                    isDisabled = true;
-                }
+            if (year === maxYear && (month + 1) === maxMonth && d > maxDay) {
+                isDisabled = true;
             }
 
             let cls = 'cal-day';
@@ -989,10 +1004,108 @@
         });
     }
 
+    // ===== 月份选择器 =====
+
+    function openMonthPicker() {
+        const overlay = document.createElement('div');
+        overlay.id = 'month-picker-overlay';
+        overlay.className = 'open';
+        overlay.innerHTML = `
+            <div class="picker-bg"></div>
+            <div id="month-picker">
+                <div class="picker-header">选择年月</div>
+                <div class="picker-years" id="picker-years"></div>
+                <div class="picker-months" id="picker-months"></div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const yearsContainer = overlay.querySelector('#picker-years');
+        const monthsContainer = overlay.querySelector('#picker-months');
+
+        // 生成年份（从有数据年份到当前年份）
+        const minYear = Math.min(2024, maxYear);
+        const currentYear = new Date().getFullYear();
+        const yearRange = Math.max(minYear, currentYear - 2);
+        const yearEnd = Math.max(maxYear, currentYear);
+
+        let yearHtml = '';
+        for (let y = yearEnd; y >= yearRange; y--) {
+            const isActive = y === calendarYear;
+            const isDisabled = y > maxYear;
+            yearHtml += `<button class="${isActive ? 'active' : ''} ${isDisabled ? 'disabled' : ''}" data-year="${y}">${y}年</button>`;
+        }
+        yearsContainer.innerHTML = yearHtml;
+
+        // 生成月份
+        const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+        let monthHtml = '';
+        for (let m = 0; m < 12; m++) {
+            const isActive = m === calendarMonthIndex && calendarYear <= maxYear;
+            const isDisabled = (calendarYear > maxYear) || (calendarYear === maxYear && (m + 1) > maxMonth);
+            monthHtml += `<button class="${isActive ? 'active' : ''} ${isDisabled ? 'disabled' : ''}" data-month="${m}">${monthNames[m]}</button>`;
+        }
+        monthsContainer.innerHTML = monthHtml;
+
+        // 事件绑定 - 点击背景关闭
+        overlay.querySelector('.picker-bg').addEventListener('click', function() {
+            overlay.remove();
+        });
+
+        // 选择年份
+        yearsContainer.querySelectorAll('button:not(.disabled)').forEach(btn => {
+            btn.addEventListener('click', function() {
+                calendarYear = parseInt(this.dataset.year);
+                // 更新月份显示
+                const monthBtns = monthsContainer.querySelectorAll('button');
+                const activeMonth = calendarMonthIndex;
+                monthBtns.forEach((b, idx) => {
+                    const isDisabled = (calendarYear > maxYear) || (calendarYear === maxYear && (idx + 1) > maxMonth);
+                    b.classList.toggle('active', idx === activeMonth && !isDisabled);
+                    b.classList.toggle('disabled', isDisabled);
+                });
+                // 高亮当前年份
+                yearsContainer.querySelectorAll('button').forEach(b => {
+                    b.classList.toggle('active', parseInt(b.dataset.year) === calendarYear);
+                });
+                // 更新日历显示
+                renderCalendar(calendarYear, calendarMonthIndex);
+            });
+        });
+
+        // 选择月份
+        monthsContainer.querySelectorAll('button:not(.disabled)').forEach(btn => {
+            btn.addEventListener('click', function() {
+                calendarMonthIndex = parseInt(this.dataset.month);
+                // 更新高亮
+                monthsContainer.querySelectorAll('button').forEach(b => {
+                    b.classList.toggle('active', parseInt(b.dataset.month) === calendarMonthIndex);
+                });
+                // 更新日历显示
+                renderCalendar(calendarYear, calendarMonthIndex);
+                // 关闭选择器
+                overlay.remove();
+            });
+        });
+
+        // 点击外部关闭
+        overlay.addEventListener('click', function(e) {
+            if (e.target === this) {
+                overlay.remove();
+            }
+        });
+    }
+
     function openCalendar() {
         const now = new Date();
-        calendarYear = now.getFullYear();
-        calendarMonthIndex = now.getMonth();
+        // 如果有数据，默认显示最后有数据的月份
+        if (maxDateStr) {
+            calendarYear = maxYear;
+            calendarMonthIndex = maxMonth - 1;
+        } else {
+            calendarYear = now.getFullYear();
+            calendarMonthIndex = now.getMonth();
+        }
         buildDateMap();
         renderCalendar(calendarYear, calendarMonthIndex);
         calendarOverlay.classList.add('open');
@@ -1372,11 +1485,25 @@
         if (e.target === this) closeCalendar();
     });
 
+    // 点击月份标题打开选择器
+    calendarMonth.addEventListener('click', function() {
+        if (maxDateStr) {
+            openMonthPicker();
+        } else {
+            showToast('📭 暂无聊天记录');
+        }
+    });
+
     calendarPrev.addEventListener('click', function() {
         calendarMonthIndex--;
         if (calendarMonthIndex < 0) {
             calendarMonthIndex = 11;
             calendarYear--;
+        }
+        // 如果切换后超出最大月份，自动跳转到最大月份
+        if (calendarYear > maxYear || (calendarYear === maxYear && (calendarMonthIndex + 1) > maxMonth)) {
+            calendarYear = maxYear;
+            calendarMonthIndex = maxMonth - 1;
         }
         renderCalendar(calendarYear, calendarMonthIndex);
     });
@@ -1387,26 +1514,12 @@
             calendarMonthIndex = 0;
             calendarYear++;
         }
-        renderCalendar(calendarYear, calendarMonthIndex);
-    });
-
-    calendarToday.addEventListener('click', function() {
-        const now = new Date();
-        calendarYear = now.getFullYear();
-        calendarMonthIndex = now.getMonth();
-        renderCalendar(calendarYear, calendarMonthIndex);
-        const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-        const msgs = messageDateMap[todayStr] || [];
-        if (msgs.length > 0) {
-            const firstMsg = msgs[0];
-            const idx = allMessages.indexOf(firstMsg);
-            if (idx >= 0) {
-                calendarOverlay.classList.remove('open');
-                jumpToMessage(idx);
-            }
-        } else {
-            showToast('今天没有聊天记录');
+        // 如果切换后超出最大月份，自动跳转到最大月份
+        if (calendarYear > maxYear || (calendarYear === maxYear && (calendarMonthIndex + 1) > maxMonth)) {
+            calendarYear = maxYear;
+            calendarMonthIndex = maxMonth - 1;
         }
+        renderCalendar(calendarYear, calendarMonthIndex);
     });
 
     // ===== 设置图标 =====
@@ -1455,6 +1568,13 @@
         if (!hasData) {
             showUploadView();
         } else {
+            // 构建日期映射
+            buildDateMap();
+            // 默认显示最后有数据的月份
+            if (maxDateStr) {
+                calendarYear = maxYear;
+                calendarMonthIndex = maxMonth - 1;
+            }
             showMessagesView();
             buildViewport();
             fullRebuild();
