@@ -446,15 +446,15 @@
     function estimateItemHeight(msg) {
         const text = msg._text || '';
         const charCount = text.length;
-        let baseHeight = 52;
+        let baseHeight = 48;
         const lineWidth = 20;
         const lineHeight = 24;
         const lines = Math.max(1, Math.ceil(charCount / lineWidth));
         const bubbleHeight = lines * lineHeight + 14;
         baseHeight += bubbleHeight;
         baseHeight += 30;
-        baseHeight += 10;
-        return Math.max(125, baseHeight + 4);
+        baseHeight += 8;
+        return Math.max(115, baseHeight + 4);
     }
 
     function buildHeightCache() {
@@ -1407,6 +1407,8 @@
         if (this.files && this.files[0]) {
             try {
                 settings.bgImage = await imageToBase64(this.files[0]);
+                // 立即应用到聊天背景
+                messagesContainer.style.backgroundImage = 'url(' + settings.bgImage + ')';
             } catch (err) { showToast('❌ 图片读取失败'); }
         }
         this.value = '';
