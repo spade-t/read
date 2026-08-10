@@ -89,6 +89,7 @@
     let calendarYear = 2026;
     let calendarMonthIndex = 8;
     let messageDateMap = {};
+    let maxDateStr = '';
 
     // ===== 工具函数 =====
 
@@ -445,13 +446,13 @@
     function estimateItemHeight(msg) {
         const text = msg._text || '';
         const charCount = text.length;
-        let baseHeight = 48;
+        let baseHeight = 50;
         const lineWidth = 22;
         const lines = Math.max(1, Math.ceil(charCount / lineWidth));
         const bubbleHeight = lines * 22 + 16;
         baseHeight += bubbleHeight;
-        baseHeight += 24;
-        return Math.max(110, baseHeight);
+        baseHeight += 26;
+        return Math.max(115, baseHeight);
     }
 
     function buildHeightCache() {
@@ -907,6 +908,7 @@
 
     function buildDateMap() {
         messageDateMap = {};
+        maxDateStr = '';
         for (const msg of allMessages) {
             if (msg.create_time) {
                 const d = new Date(msg.create_time);
@@ -915,6 +917,9 @@
                     messageDateMap[key] = [];
                 }
                 messageDateMap[key].push(msg);
+                if (key > maxDateStr) {
+                    maxDateStr = key;
+                }
             }
         }
     }
@@ -928,6 +933,12 @@
         const today = new Date();
         const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
 
+        // 解析最大日期
+        const maxParts = maxDateStr ? maxDateStr.split('-').map(Number) : [year, month + 1, 0];
+        const maxYear = maxParts[0] || year;
+        const maxMonth = maxParts[1] || (month + 1);
+        const maxDay = maxParts[2] || 0;
+
         let html = '';
 
         for (let i = 0; i < firstDay; i++) {
@@ -939,17 +950,33 @@
             const hasMsg = messageDateMap[dateStr] && messageDateMap[dateStr].length > 0;
             const isToday = dateStr === todayStr;
 
+            // 判断是否超出最大日期
+            let isDisabled = false;
+            if (maxDateStr) {
+                const yearCompare = year > maxYear;
+                const monthCompare = year === maxYear && (month + 1) > maxMonth;
+                const dayCompare = year === maxYear && (month + 1) === maxMonth && d > maxDay;
+                if (yearCompare || monthCompare || dayCompare) {
+                    isDisabled = true;
+                }
+            }
+
             let cls = 'cal-day';
-            if (isToday) cls += ' today';
-            else if (hasMsg) cls += ' has-msg';
+            if (isDisabled) {
+                cls += ' disabled';
+            } else if (isToday) {
+                cls += ' today';
+            } else if (hasMsg) {
+                cls += ' has-msg';
+            }
 
             html += '<button class="' + cls + '" data-date="' + dateStr + '"' +
-                (hasMsg ? '' : ' disabled') + '>' + d + '</button>';
+                (hasMsg && !isDisabled ? '' : ' disabled') + '>' + d + '</button>';
         }
 
         calendarDays.innerHTML = html;
 
-        calendarDays.querySelectorAll('.cal-day.has-msg').forEach(el => {
+        calendarDays.querySelectorAll('.cal-day.has-msg:not(.disabled)').forEach(el => {
             el.addEventListener('click', function() {
                 const dateStr = this.dataset.date;
                 const msgs = messageDateMap[dateStr] || [];
@@ -959,7 +986,7 @@
                     if (idx >= 0) {
                         calendarOverlay.classList.remove('open');
                         jumpToMessage(idx);
-                        showToast('📅 跳转到 ' + dateStr);
+                        // 不显示 Toast 提示
                     }
                 }
             });
@@ -1055,7 +1082,6 @@
         sBotName.value = settings.botName || '';
         sUserAvatarPreview.src = settings.userAvatar || '';
         sBotAvatarPreview.src = settings.botAvatar || '';
-        sBgPreview.src = settings.bgImage || '';
 
         if (isDataLoaded && allMessages.length > 0) {
             fullRebuild();
@@ -1182,7 +1208,6 @@
         sBotName.value = settings.botName || '';
         sUserAvatarPreview.src = settings.userAvatar || '';
         sBotAvatarPreview.src = settings.botAvatar || '';
-        sBgPreview.src = settings.bgImage || '';
     }
 
     function closeSettings() {
@@ -1294,8 +1319,7 @@
         if (this.files && this.files[0]) {
             try {
                 settings.bgImage = await imageToBase64(this.files[0]);
-                sBgPreview.src = settings.bgImage;
-                messagesContainer.style.backgroundImage = 'url(' + settings.bgImage + ')';
+                // 不再显示预览，只保存
             } catch (err) { showToast('❌ 图片读取失败'); }
         }
         this.value = '';
@@ -1345,7 +1369,6 @@
     });
 
     // ===== 日历事件 =====
-    // 设置日历图标
     calendarBtn.innerHTML = getCalendarIcon();
 
     calendarBtn.addEventListener('click', openCalendar);
@@ -1386,7 +1409,7 @@
             if (idx >= 0) {
                 calendarOverlay.classList.remove('open');
                 jumpToMessage(idx);
-                showToast('📅 跳转到今天');
+                // 不显示 Toast 提示
             }
         } else {
             showToast('今天没有聊天记录');
@@ -1433,7 +1456,6 @@
         await loadSettings();
         setupMessageEvents();
 
-        // 设置设置图标
         settingsBtn.innerHTML = getSettingsIcon();
 
         const hasData = await loadDataFromDB();
