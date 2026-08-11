@@ -470,9 +470,9 @@
         });
     }
 
-    // ===== 虚拟滚动 - 精确测量 + 缓存 =====
+    // ===== 虚拟滚动 - 合并了 renderer.js 的全部逻辑 =====
 
-    // 创建消息元素（用于测量）
+    // 创建用于测量的隐藏元素
     function createMeasureElement(msg, index, containerWidth) {
         const isUser = msg._userType === 'user';
         let displayName;
@@ -487,16 +487,12 @@
         const item = document.createElement('div');
         item.className = 'msg-item';
         item.dataset.index = index;
-        item.style.position = 'relative';
-        item.style.left = '0';
-        item.style.right = '0';
-        item.style.top = '0';
-        item.style.height = 'auto';
-        item.style.visibility = 'hidden';
         item.style.position = 'absolute';
         item.style.left = '-9999px';
         item.style.top = '-9999px';
         item.style.width = (containerWidth - 20) + 'px';
+        item.style.height = 'auto';
+        item.style.visibility = 'hidden';
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -556,25 +552,20 @@
         const total = allMessages.length;
         if (total === 0) return;
 
-        // ★★★ 关键修复：确保 messagesContainer 可见，获取准确宽度 ★★★
         const containerWidth = messagesContainer.clientWidth || 600;
 
-        // 创建隐藏容器
         const measureContainer = document.createElement('div');
         measureContainer.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:' + containerWidth + 'px;';
         document.body.appendChild(measureContainer);
 
         const fragment = document.createDocumentFragment();
         for (let i = 0; i < total; i++) {
-            const el = createMeasureElement(allMessages[i], i, containerWidth);
-            fragment.appendChild(el);
+            fragment.appendChild(createMeasureElement(allMessages[i], i, containerWidth));
         }
         measureContainer.appendChild(fragment);
 
-        // 强制回流，确保所有元素已渲染
         measureContainer.offsetHeight;
 
-        // 读取每个元素的高度
         const items = measureContainer.querySelectorAll('.msg-item');
         itemHeights = new Array(total);
         for (let i = 0; i < items.length; i++) {
@@ -582,7 +573,6 @@
             itemHeights[i] = Math.max(h, 60);
         }
 
-        // 计算偏移
         itemOffsets = new Array(total);
         totalHeight = 0;
         for (let i = 0; i < total; i++) {
@@ -591,8 +581,6 @@
         }
 
         heightMeasured = true;
-
-        // 清理隐藏容器
         document.body.removeChild(measureContainer);
     }
 
@@ -714,7 +702,6 @@
         row.appendChild(body);
         item.appendChild(row);
 
-        // 点击消息选中
         item.addEventListener('click', function(e) {
             if (e.target.closest('.msg-action-btn')) return;
             const idx = parseInt(this.dataset.index);
@@ -902,7 +889,7 @@
             allMessages.splice(index, 1);
             if (selectedIndex === index) selectedIndex = -1;
             else if (selectedIndex > index) selectedIndex--;
-            // 重建高度缓存
+            // 重新测量并重建
             measureAllMessages();
             fullRebuild();
             showToast('🗑️ 已删除');
@@ -1339,7 +1326,6 @@
                 isDataLoaded = true;
                 showMessagesView();
                 buildViewport();
-                // 测量高度
                 measureAllMessages();
                 fullRebuild();
                 const savedPos = loadScrollPosition();
@@ -1376,6 +1362,7 @@
         progressWrap.classList.remove('show');
         fileInput.value = '';
         isDataLoaded = false;
+        heightMeasured = false;
         if (scrollViewport) {
             scrollViewport.innerHTML = '';
         }
@@ -1390,7 +1377,7 @@
         }
 
         isParsing = true;
-        // 先显示消息容器，确保有宽高
+        // 关键：先显示消息容器，确保有宽高
         messagesContainer.style.display = 'block';
         uploadZone.style.display = 'none';
         progressWrap.classList.add('show');
@@ -1428,17 +1415,15 @@
                 allMessages = messages;
                 if (botName && botName !== 'Bot') settings.botName = botName;
 
-                // 40%：开始测量高度
                 progressBar.style.width = '40%';
                 pstatus.textContent = '40%';
                 pdetail.textContent = '正在测量消息高度...';
 
                 await new Promise(r => requestAnimationFrame(r));
 
-                // 测量所有消息的真实高度
+                // ★★★ 核心：测量所有消息的真实高度 ★★★
                 measureAllMessages();
 
-                // 70%：测量完成
                 progressBar.style.width = '70%';
                 pstatus.textContent = '70%';
                 pdetail.textContent = '测量完成，正在保存...';
@@ -1726,6 +1711,7 @@
 
     settingsBtn.innerHTML = getSettingsIcon();
 
+    // ===== 滚动事件 =====
     messagesContainer.addEventListener('scroll', function() {
         if (!isDataLoaded || allMessages.length === 0 || !heightMeasured) return;
 
@@ -1741,6 +1727,7 @@
         });
     });
 
+    // ===== Resize =====
     let resizeTimeout = null;
     window.addEventListener('resize', function() {
         if (resizeTimeout) clearTimeout(resizeTimeout);
@@ -1756,6 +1743,7 @@
         saveScrollPosition();
     });
 
+    // ===== 初始化 =====
     async function init() {
         await loadSettings();
         setupMessageEvents();
