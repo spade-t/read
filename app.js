@@ -493,6 +493,8 @@
         item.style.width = (containerWidth - 20) + 'px';
         item.style.height = 'auto';
         item.style.visibility = 'hidden';
+        item.style.paddingBottom = '12px';
+        item.style.boxSizing = 'border-box';
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -569,7 +571,8 @@
         const items = measureContainer.querySelectorAll('.msg-item');
         itemHeights = new Array(total);
         for (let i = 0; i < items.length; i++) {
-            const h = items[i].offsetHeight;
+            const rect = items[i].getBoundingClientRect();
+            const h = rect.height;
             itemHeights[i] = Math.max(h, 60);
         }
 
@@ -642,6 +645,8 @@
         item.style.right = '0';
         item.style.top = itemOffsets[index] + 'px';
         item.style.height = itemHeights[index] + 'px';
+        item.style.paddingBottom = '12px';
+        item.style.boxSizing = 'border-box';
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -716,6 +721,27 @@
         });
 
         return item;
+    }
+
+    // ===== 处理按钮点击 =====
+    function handleAction(btn) {
+        const action = btn.dataset.action;
+        const index = parseInt(btn.dataset.index);
+        if (isNaN(index) || index < 0 || index >= allMessages.length) return;
+        const msg = allMessages[index];
+
+        if (action === 'copy') {
+            const text = msg._text || '';
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制')).catch(() => fallbackCopy(text));
+            } else {
+                fallbackCopy(text);
+            }
+        } else if (action === 'delete') {
+            confirmAction().then((ok) => {
+                if (ok) deleteMessage(index);
+            }).catch(() => {});
+        }
     }
 
     function fullRebuild() {
@@ -847,30 +873,23 @@
             const btn = e.target.closest('.msg-action-btn');
             if (btn) {
                 e.stopPropagation();
-                const action = btn.dataset.action;
-                const index = parseInt(btn.dataset.index);
-                if (isNaN(index) || index < 0 || index >= allMessages.length) return;
-
-                const msg = allMessages[index];
-
-                if (action === 'copy') {
-                    const text = msg._text || '';
-                    if (navigator.clipboard) {
-                        navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
-                    } else {
-                        fallbackCopy(text);
-                    }
-                } else if (action === 'delete') {
-                    confirmAction().then((ok) => {
-                        if (ok) {
-                            deleteMessage(index);
-                        }
-                    }).catch(() => {});
-                }
+                handleAction(btn);
                 return;
             }
 
-            if (e.target === messagesContainer || e.target.id === 'scroll-viewport' || e.target === document.body) {
+            // 如果点击的是消息项但不在按钮上，取消选中
+            const item = e.target.closest('.msg-item');
+            if (item) {
+                const idx = parseInt(item.dataset.index);
+                if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
+                    if (selectedIndex === idx) {
+                        selectedIndex = -1;
+                    } else {
+                        selectedIndex = idx;
+                    }
+                    fullRebuild();
+                }
+            } else {
                 if (selectedIndex !== -1) {
                     selectedIndex = -1;
                     fullRebuild();
@@ -1377,7 +1396,6 @@
         }
 
         isParsing = true;
-        // 关键：先显示消息容器，确保有宽高
         messagesContainer.style.display = 'block';
         uploadZone.style.display = 'none';
         progressWrap.classList.add('show');
@@ -1386,7 +1404,6 @@
         pname.textContent = file.name;
         pdetail.textContent = '读取文件中...';
 
-        // 强制回流
         messagesContainer.offsetHeight;
 
         parseJSONFileComplete(
@@ -1421,7 +1438,6 @@
 
                 await new Promise(r => requestAnimationFrame(r));
 
-                // ★★★ 核心：测量所有消息的真实高度 ★★★
                 measureAllMessages();
 
                 progressBar.style.width = '70%';
@@ -1510,6 +1526,12 @@
         e.preventDefault();
         fileInput.click();
     });
+
+    // 手机端触摸支持
+    uploadBtn.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        fileInput.click();
+    }, { passive: false });
 
     fileInput.addEventListener('change', function() {
         if (this.files && this.files[0]) {
@@ -1622,8 +1644,19 @@
         this.value = '';
     });
 
-    sUploadJson.addEventListener('click', function() { closeSettings();
-        fileInput.click(); });
+    sUploadJson.addEventListener('click', function() {
+        closeSettings();
+        // 使用延迟确保设置面板关闭后再触发文件选择
+        setTimeout(() => fileInput.click(), 100);
+    });
+
+    // 手机端触摸支持
+    sUploadJson.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        closeSettings();
+        setTimeout(() => fileInput.click(), 100);
+    }, { passive: false });
+
     sExportMd.addEventListener('click', exportMD);
 
     sClearData.addEventListener('click', function() {
