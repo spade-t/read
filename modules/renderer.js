@@ -16,6 +16,22 @@ let itemHeights = [];
 let itemOffsets = [];
 let totalHeight = 0;
 
+// 是否已测量过真实高度
+let heightMeasured = false;
+
+// ===== 外部依赖引用（由 app.js 注入） =====
+let _formatBeijingTime = null;
+let _showToast = null;
+let _fallbackCopy = null;
+let _saveScrollPosition = null;
+
+function setDependencies(formatBeijingTime, showToast, fallbackCopy, saveScrollPosition) {
+    _formatBeijingTime = formatBeijingTime;
+    _showToast = showToast;
+    _fallbackCopy = fallbackCopy;
+    _saveScrollPosition = saveScrollPosition;
+}
+
 function initRenderer(messages, settingsObj, deleteFn, confirmFn, container) {
     allMessages = messages;
     settings = settingsObj;
@@ -30,26 +46,14 @@ function setMessages(messages) {
     buildHeightCache();
 }
 
-// ===== 预估消息高度 =====
+// ===== 预估消息高度（仅用于初始占位，实际会被测量覆盖） =====
 function estimateItemHeight(msg) {
     const text = msg._text || '';
     const charCount = text.length;
-    const isUser = msg._userType === 'user';
-    const name = isUser ? (settings.userName || '我') : (settings.botName || 'Bot');
-    const nameLen = name.length;
-    
-    // 基础高度：头像 + 名称行 + 气泡 + 按钮
-    let baseHeight = 50; // 头部 + padding
-    
-    // 气泡高度：每行约20px，每行约20个字符（中文字符）
     const lineWidth = 20;
-    const lines = Math.ceil(charCount / lineWidth);
-    const bubbleHeight = Math.max(20, lines * 22);
-    
-    baseHeight += bubbleHeight;
-    baseHeight += 30; // 按钮区域
-    
-    return Math.max(100, baseHeight);
+    const lines = Math.max(1, Math.ceil(charCount / lineWidth));
+    const bubbleHeight = lines * 22 + 16;
+    return 52 + bubbleHeight + 34;
 }
 
 // ===== 构建高度缓存 =====
@@ -58,21 +62,19 @@ function buildHeightCache() {
     itemHeights = new Array(count);
     itemOffsets = new Array(count);
     totalHeight = 0;
-    
     for (let i = 0; i < count; i++) {
         const h = estimateItemHeight(allMessages[i]);
         itemHeights[i] = h;
         itemOffsets[i] = totalHeight;
         totalHeight += h;
     }
+    heightMeasured = false;
 }
 
-// ===== 根据滚动位置查找可见范围 =====
 function findVisibleRange(scrollTop, containerHeight) {
     const count = allMessages.length;
     if (count === 0) return { start: 0, end: 0 };
-    
-    // 二分查找起始索引
+
     let start = 0;
     let end = count - 1;
     while (start < end) {
@@ -84,15 +86,14 @@ function findVisibleRange(scrollTop, containerHeight) {
         }
     }
     start = Math.max(0, start - BUFFER_SIZE);
-    
-    // 查找结束索引
+
     const bottom = scrollTop + containerHeight;
     end = start;
     while (end < count && itemOffsets[end] < bottom + BUFFER_SIZE * 100) {
         end++;
     }
     end = Math.min(count, end + BUFFER_SIZE);
-    
+
     return { start, end };
 }
 
@@ -117,7 +118,7 @@ function createMessageElement(msg, index) {
         displayName = settings.botName && settings.botName !== 'Bot' ? settings.botName : (msg._botName || 'Bot');
     }
     const avatar = isUser ? settings.userAvatar : settings.botAvatar;
-    const time = formatBeijingTime(msg.create_time);
+    const time = _formatBeijingTime ? _formatBeijingTime(msg.create_time) : '';
 
     const item = document.createElement('div');
     item.className = 'msg-item';
@@ -202,9 +203,20 @@ function setupMessageEvents(container) {
         if (action === 'copy') {
             const text = msg._text || '';
             if (navigator.clipboard) {
-                navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
+                navigator.clipboard.writeText(text).then(() => _showToast ? _showToast('✅ 已复制') : alert('已复制'));
             } else {
-                fallbackCopy(text);
+                if (_fallbackCopy) {
+                    _fallbackCopy(text);
+                } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.cssText = 'position:fixed;opacity:0;';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    if (_showToast) _showToast('✅ 已复制');
+                }
             }
             e.stopPropagation();
         } else if (action === 'delete') {
@@ -326,7 +338,9 @@ function setupScrollListener(container) {
     container.addEventListener('scroll', function() {
         if (allMessages.length === 0) return;
 
-        saveScrollPosition(container);
+        if (_saveScrollPosition) {
+            _saveScrollPosition(container);
+        }
 
         if (scrollFrameId) {
             cancelAnimationFrame(scrollFrameId);
@@ -362,7 +376,6 @@ function jumpToMessage(container, index) {
 
 function updateRendererSettings(newSettings) {
     settings = newSettings;
-    // 设置变化后，高度可能变化，重新计算
     buildHeightCache();
     if (messagesContainerRef) {
         fullRebuild(messagesContainerRef);
@@ -376,7 +389,6 @@ function refreshRenderer() {
     }
 }
 
-// 删除后重建（由外部调用）
 function rebuildAfterDelete() {
     buildHeightCache();
     if (messagesContainerRef) {
