@@ -79,7 +79,6 @@
     let itemHeights = [];
     let itemOffsets = [];
     let totalHeight = 0;
-    let heightMeasured = false;
 
     // 搜索状态
     let searchMatchCache = [];
@@ -470,133 +469,33 @@
         });
     }
 
-    // ===== 虚拟滚动 - 合并了 renderer.js 的全部逻辑 =====
+    // ===== 虚拟滚动 - 固定高度（预计算） =====
 
-    // 创建用于测量的隐藏元素
-    function createMeasureElement(msg, index, containerWidth) {
-        const isUser = msg._userType === 'user';
-        let displayName;
-        if (isUser) {
-            displayName = settings.userName || '我';
-        } else {
-            displayName = settings.botName && settings.botName !== 'Bot' ? settings.botName : (msg._botName || 'Bot');
-        }
-        const avatar = isUser ? settings.userAvatar : settings.botAvatar;
-        const time = formatBeijingTime(msg.create_time);
-
-        const item = document.createElement('div');
-        item.className = 'msg-item';
-        item.dataset.index = index;
-        item.style.position = 'absolute';
-        item.style.left = '-9999px';
-        item.style.top = '-9999px';
-        item.style.width = (containerWidth - 20) + 'px';
-        item.style.height = 'auto';
-        item.style.visibility = 'hidden';
-        item.style.paddingBottom = '12px';
-        item.style.boxSizing = 'border-box';
-
-        const row = document.createElement('div');
-        row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
-
-        const avatarImg = document.createElement('img');
-        avatarImg.className = 'msg-avatar';
-        avatarImg.src = avatar || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"%3E%3Ccircle cx="20" cy="20" r="20" fill="%23ccc"/%3E%3Ctext x="20" y="26" font-size="18" text-anchor="middle" fill="%23999"%3E' +
-            (isUser ? '我' : 'B') + '%3C/text%3E%3C/svg%3E';
-        avatarImg.alt = displayName;
-
-        const body = document.createElement('div');
-        body.className = 'msg-body';
-
-        const header = document.createElement('div');
-        header.className = 'msg-header';
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'mname';
-        nameSpan.textContent = displayName;
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'mtime';
-        timeSpan.textContent = '(' + time + ')';
-        header.appendChild(nameSpan);
-        header.appendChild(timeSpan);
-
-        const bubble = document.createElement('div');
-        bubble.className = 'msg-bubble';
-        const content = document.createElement('div');
-        content.className = 'text-content';
-        content.textContent = msg._text || '[空消息]';
-        bubble.appendChild(content);
-
-        const actions = document.createElement('div');
-        actions.className = 'msg-actions';
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'msg-action-btn copy-btn';
-        copyBtn.innerHTML = getCopyIcon();
-        copyBtn.style.visibility = 'hidden';
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'msg-action-btn delete-btn';
-        deleteBtn.innerHTML = getDeleteIcon();
-        deleteBtn.style.visibility = 'hidden';
-        actions.appendChild(copyBtn);
-        actions.appendChild(deleteBtn);
-
-        body.appendChild(header);
-        body.appendChild(bubble);
-        body.appendChild(actions);
-
-        row.appendChild(avatarImg);
-        row.appendChild(body);
-        item.appendChild(row);
-        return item;
+    function estimateItemHeight(msg) {
+        const text = msg._text || '';
+        const charCount = text.length;
+        // 根据实际CSS样式估算：行高1.7 * 16px ≈ 27px，每行约20个字符
+        const lineHeight = 27;
+        const charsPerLine = 20;
+        const lines = Math.max(1, Math.ceil(charCount / charsPerLine));
+        const bubbleHeight = lines * lineHeight + 16; // 气泡内边距16px
+        const headerHeight = 22; // 名称+时间
+        const actionsHeight = 34; // 按钮区域（含间距）
+        const bottomGap = 10; // 固定间距（与CSS一致）
+        return Math.max(100, headerHeight + bubbleHeight + actionsHeight + bottomGap);
     }
 
-    // 测量所有消息的真实高度
-    function measureAllMessages() {
-        const total = allMessages.length;
-        if (total === 0) return;
-
-        const containerWidth = messagesContainer.clientWidth || 600;
-
-        const measureContainer = document.createElement('div');
-        measureContainer.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:' + containerWidth + 'px;';
-        document.body.appendChild(measureContainer);
-
-        const fragment = document.createDocumentFragment();
-        for (let i = 0; i < total; i++) {
-            fragment.appendChild(createMeasureElement(allMessages[i], i, containerWidth));
-        }
-        measureContainer.appendChild(fragment);
-
-        measureContainer.offsetHeight;
-
-        const items = measureContainer.querySelectorAll('.msg-item');
-        itemHeights = new Array(total);
-        for (let i = 0; i < items.length; i++) {
-            const rect = items[i].getBoundingClientRect();
-            const h = rect.height;
-            itemHeights[i] = Math.max(h, 60);
-        }
-
-        itemOffsets = new Array(total);
+    function buildHeightCache() {
+        const count = allMessages.length;
+        itemHeights = new Array(count);
+        itemOffsets = new Array(count);
         totalHeight = 0;
-        for (let i = 0; i < total; i++) {
+        for (let i = 0; i < count; i++) {
+            const h = estimateItemHeight(allMessages[i]);
+            itemHeights[i] = h;
             itemOffsets[i] = totalHeight;
-            totalHeight += itemHeights[i];
+            totalHeight += h;
         }
-
-        heightMeasured = true;
-        document.body.removeChild(measureContainer);
-    }
-
-    function buildViewport() {
-        if (!scrollViewport) {
-            scrollViewport = document.createElement('div');
-            scrollViewport.id = 'scroll-viewport';
-            scrollViewport.style.position = 'relative';
-            scrollViewport.style.width = '100%';
-            scrollViewport.style.minHeight = '100%';
-            messagesContainer.appendChild(scrollViewport);
-        }
-        return scrollViewport;
     }
 
     function findVisibleRange(scrollTop, containerHeight) {
@@ -605,6 +504,7 @@
 
         let start = 0;
         let end = count - 1;
+        // 二分查找起始索引
         let lo = 0, hi = count - 1;
         while (lo < hi) {
             const mid = Math.floor((lo + hi) / 2);
@@ -626,6 +526,18 @@
         return { start, end };
     }
 
+    function buildViewport() {
+        if (!scrollViewport) {
+            scrollViewport = document.createElement('div');
+            scrollViewport.id = 'scroll-viewport';
+            scrollViewport.style.position = 'relative';
+            scrollViewport.style.width = '100%';
+            scrollViewport.style.minHeight = '100%';
+            messagesContainer.appendChild(scrollViewport);
+        }
+        return scrollViewport;
+    }
+
     function createMessageElement(msg, index) {
         const isUser = msg._userType === 'user';
         let displayName;
@@ -645,8 +557,6 @@
         item.style.right = '0';
         item.style.top = itemOffsets[index] + 'px';
         item.style.height = itemHeights[index] + 'px';
-        item.style.paddingBottom = '12px';
-        item.style.boxSizing = 'border-box';
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -707,6 +617,7 @@
         row.appendChild(body);
         item.appendChild(row);
 
+        // 点击消息选中
         item.addEventListener('click', function(e) {
             if (e.target.closest('.msg-action-btn')) return;
             const idx = parseInt(this.dataset.index);
@@ -723,28 +634,8 @@
         return item;
     }
 
-    // ===== 处理按钮点击 =====
-    function handleAction(btn) {
-        const action = btn.dataset.action;
-        const index = parseInt(btn.dataset.index);
-        if (isNaN(index) || index < 0 || index >= allMessages.length) return;
-        const msg = allMessages[index];
-
-        if (action === 'copy') {
-            const text = msg._text || '';
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制')).catch(() => fallbackCopy(text));
-            } else {
-                fallbackCopy(text);
-            }
-        } else if (action === 'delete') {
-            confirmAction().then((ok) => {
-                if (ok) deleteMessage(index);
-            }).catch(() => {});
-        }
-    }
-
     function fullRebuild() {
+        buildHeightCache();
         const viewport = buildViewport();
 
         const total = allMessages.length;
@@ -785,6 +676,7 @@
         const start = range.start;
         const end = range.end;
 
+        // 检查是否需要重建
         if (Math.abs(start - visibleStart) > 2 || Math.abs(end - visibleEnd) > 2) {
             visibleStart = start;
             visibleEnd = end;
@@ -803,6 +695,7 @@
                 needed.add(i);
             }
 
+            // 移除不需要的
             const toRemove = [];
             for (const idx in childMap) {
                 if (!needed.has(parseInt(idx))) {
@@ -814,6 +707,7 @@
                 delete childMap[el.dataset.index];
             }
 
+            // 添加缺失的
             const fragment = document.createDocumentFragment();
             for (let i = start; i < end; i++) {
                 if (!childMap[i]) {
@@ -826,6 +720,7 @@
                 scrollViewport.appendChild(fragment);
             }
 
+            // 更新所有可见消息的位置
             for (const idx in childMap) {
                 const el = childMap[idx];
                 const index = parseInt(idx);
@@ -834,6 +729,7 @@
                 el.dataset.index = index;
             }
         } else {
+            // 只更新位置（高度不变）
             const children = scrollViewport.querySelectorAll('.msg-item');
             children.forEach(el => {
                 const idx = parseInt(el.dataset.index);
@@ -846,11 +742,19 @@
 
     function jumpToMessage(index) {
         if (index < 0 || index >= allMessages.length) return;
+        // 先确保目标在可见范围内
         const targetOffset = itemOffsets[index];
+        const targetHeight = itemHeights[index];
         const containerHeight = messagesContainer.clientHeight;
-        const newScroll = Math.max(0, targetOffset - containerHeight / 3);
-        messagesContainer.scrollTo({ top: newScroll, behavior: 'smooth' });
+        // 如果目标不在当前视口中，调整滚动位置
+        const currentScroll = messagesContainer.scrollTop;
+        if (targetOffset < currentScroll || targetOffset + targetHeight > currentScroll + containerHeight) {
+            // 滚动到目标消息
+            const newScroll = Math.max(0, targetOffset - containerHeight / 3);
+            messagesContainer.scrollTo({ top: newScroll, behavior: 'smooth' });
+        }
 
+        // 高亮目标消息
         setTimeout(() => {
             if (scrollViewport) {
                 const items = scrollViewport.querySelectorAll('.msg-item');
@@ -873,23 +777,31 @@
             const btn = e.target.closest('.msg-action-btn');
             if (btn) {
                 e.stopPropagation();
-                handleAction(btn);
+                const action = btn.dataset.action;
+                const index = parseInt(btn.dataset.index);
+                if (isNaN(index) || index < 0 || index >= allMessages.length) return;
+
+                const msg = allMessages[index];
+
+                if (action === 'copy') {
+                    const text = msg._text || '';
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
+                    } else {
+                        fallbackCopy(text);
+                    }
+                } else if (action === 'delete') {
+                    confirmAction().then((ok) => {
+                        if (ok) {
+                            deleteMessage(index);
+                        }
+                    }).catch(() => {});
+                }
                 return;
             }
 
-            // 如果点击的是消息项但不在按钮上，取消选中
-            const item = e.target.closest('.msg-item');
-            if (item) {
-                const idx = parseInt(item.dataset.index);
-                if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
-                    if (selectedIndex === idx) {
-                        selectedIndex = -1;
-                    } else {
-                        selectedIndex = idx;
-                    }
-                    fullRebuild();
-                }
-            } else {
+            // 点击空白取消选中
+            if (e.target === messagesContainer || e.target.id === 'scroll-viewport' || e.target === document.body) {
                 if (selectedIndex !== -1) {
                     selectedIndex = -1;
                     fullRebuild();
@@ -908,8 +820,6 @@
             allMessages.splice(index, 1);
             if (selectedIndex === index) selectedIndex = -1;
             else if (selectedIndex > index) selectedIndex--;
-            // 重新测量并重建
-            measureAllMessages();
             fullRebuild();
             showToast('🗑️ 已删除');
         } catch (err) {
@@ -1331,7 +1241,7 @@
         sBotAvatarPreview.src = settings.botAvatar || '';
         applyDarkMode(settings.darkMode || false);
 
-        if (isDataLoaded && allMessages.length > 0 && heightMeasured) {
+        if (isDataLoaded && allMessages.length > 0) {
             fullRebuild();
         }
     }
@@ -1345,7 +1255,6 @@
                 isDataLoaded = true;
                 showMessagesView();
                 buildViewport();
-                measureAllMessages();
                 fullRebuild();
                 const savedPos = loadScrollPosition();
                 setTimeout(() => {
@@ -1381,7 +1290,6 @@
         progressWrap.classList.remove('show');
         fileInput.value = '';
         isDataLoaded = false;
-        heightMeasured = false;
         if (scrollViewport) {
             scrollViewport.innerHTML = '';
         }
@@ -1396,35 +1304,24 @@
         }
 
         isParsing = true;
-        messagesContainer.style.display = 'block';
-        uploadZone.style.display = 'none';
         progressWrap.classList.add('show');
         progressBar.style.width = '0%';
         pstatus.textContent = '0%';
         pname.textContent = file.name;
-        pdetail.textContent = '读取文件中...';
-
-        messagesContainer.offsetHeight;
+        pdetail.textContent = '准备解析...';
 
         parseJSONFileComplete(
             file,
             (progress) => {
-                const p = Math.round(progress * 0.3);
-                progressBar.style.width = p + '%';
-                pstatus.textContent = p + '%';
-                pdetail.textContent = '解析中 ' + progress + '%';
+                progressBar.style.width = progress + '%';
+                pstatus.textContent = progress + '%';
+                pdetail.textContent = '解析中...';
             },
             async (messages, botName) => {
-                progressBar.style.width = '30%';
-                pstatus.textContent = '30%';
-                pdetail.textContent = '正在准备渲染...';
-
+                isParsing = false;
                 if (messages.length === 0) {
-                    isParsing = false;
                     showToast('❌ 未解析到任何消息');
                     progressWrap.classList.remove('show');
-                    uploadZone.style.display = 'flex';
-                    messagesContainer.style.display = 'none';
                     return;
                 }
 
@@ -1432,68 +1329,32 @@
                 allMessages = messages;
                 if (botName && botName !== 'Bot') settings.botName = botName;
 
-                progressBar.style.width = '40%';
-                pstatus.textContent = '40%';
-                pdetail.textContent = '正在测量消息高度...';
-
-                await new Promise(r => requestAnimationFrame(r));
-
-                measureAllMessages();
-
-                progressBar.style.width = '70%';
-                pstatus.textContent = '70%';
-                pdetail.textContent = '测量完成，正在保存...';
-
-                await new Promise(r => requestAnimationFrame(r));
-
                 try {
                     await clearAllMessagesDB();
                     for (let i = 0; i < allMessages.length; i += 5000) {
                         await saveMessagesToDB(allMessages.slice(i, i + 5000));
-                        const saveProgress = 70 + Math.round((i / allMessages.length) * 25);
-                        progressBar.style.width = Math.min(95, saveProgress) + '%';
-                        pstatus.textContent = Math.min(95, saveProgress) + '%';
-                        pdetail.textContent = '保存中 ' + Math.min(95, saveProgress) + '%';
                     }
                     await saveSettingsToDB(settings);
-
-                    progressBar.style.width = '95%';
-                    pstatus.textContent = '95%';
-                    pdetail.textContent = '即将完成...';
-
-                    await new Promise(r => requestAnimationFrame(r));
-
                     isDataLoaded = true;
-                    heightMeasured = true;
-                    footer.style.display = 'flex';
+                    showMessagesView();
+                    applySettings();
                     buildViewport();
                     fullRebuild();
-
-                    progressBar.style.width = '100%';
-                    pstatus.textContent = '100%';
                     pdetail.textContent = '✅ 完成！共 ' + allMessages.length.toLocaleString() + ' 条消息';
+                    pstatus.textContent = '✅ 完成';
                     showToast('✅ 导入完成');
-
-                    setTimeout(() => {
-                        progressWrap.classList.remove('show');
-                    }, 800);
-
                     setTimeout(() => {
                         messagesContainer.scrollTop = 0;
                         localStorage.setItem('chat_scroll_top', '0');
                     }, 100);
-
                 } catch (err) {
                     showToast('❌ 保存失败');
                 }
-                isParsing = false;
             },
             (err) => {
                 isParsing = false;
                 showToast('❌ ' + err);
                 progressWrap.classList.remove('show');
-                uploadZone.style.display = 'flex';
-                messagesContainer.style.display = 'none';
             }
         );
     }
@@ -1526,12 +1387,6 @@
         e.preventDefault();
         fileInput.click();
     });
-
-    // 手机端触摸支持
-    uploadBtn.addEventListener('touchstart', function(e) {
-        e.preventDefault();
-        fileInput.click();
-    }, { passive: false });
 
     fileInput.addEventListener('change', function() {
         if (this.files && this.files[0]) {
@@ -1644,19 +1499,8 @@
         this.value = '';
     });
 
-    sUploadJson.addEventListener('click', function() {
-        closeSettings();
-        // 使用延迟确保设置面板关闭后再触发文件选择
-        setTimeout(() => fileInput.click(), 100);
-    });
-
-    // 手机端触摸支持
-    sUploadJson.addEventListener('touchstart', function(e) {
-        e.preventDefault();
-        closeSettings();
-        setTimeout(() => fileInput.click(), 100);
-    }, { passive: false });
-
+    sUploadJson.addEventListener('click', function() { closeSettings();
+        fileInput.click(); });
     sExportMd.addEventListener('click', exportMD);
 
     sClearData.addEventListener('click', function() {
@@ -1680,7 +1524,6 @@
                 });
                 allMessages = [];
                 isDataLoaded = false;
-                heightMeasured = false;
                 settings = { userName: '我', botName: 'Bot', userAvatar: '', botAvatar: '', bgImage: '', darkMode: false };
                 applySettings();
                 showUploadView();
@@ -1744,9 +1587,8 @@
 
     settingsBtn.innerHTML = getSettingsIcon();
 
-    // ===== 滚动事件 =====
     messagesContainer.addEventListener('scroll', function() {
-        if (!isDataLoaded || allMessages.length === 0 || !heightMeasured) return;
+        if (!isDataLoaded || allMessages.length === 0) return;
 
         saveScrollPosition();
 
@@ -1760,13 +1602,11 @@
         });
     });
 
-    // ===== Resize =====
     let resizeTimeout = null;
     window.addEventListener('resize', function() {
         if (resizeTimeout) clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
-            if (isDataLoaded && allMessages.length > 0 && heightMeasured) {
-                measureAllMessages();
+            if (isDataLoaded && allMessages.length > 0) {
                 fullRebuild();
             }
         }, 300);
@@ -1776,7 +1616,6 @@
         saveScrollPosition();
     });
 
-    // ===== 初始化 =====
     async function init() {
         await loadSettings();
         setupMessageEvents();
