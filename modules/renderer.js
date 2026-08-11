@@ -1,4 +1,4 @@
-// ===== 虚拟滚动渲染 - 动态高度版本 =====
+// ===== 虚拟滚动渲染 - 精准高度版本 =====
 
 let allMessages = [];
 let settings = { userName: '我', botName: 'Bot', userAvatar: '', botAvatar: '', bgImage: '' };
@@ -16,21 +16,8 @@ let itemHeights = [];
 let itemOffsets = [];
 let totalHeight = 0;
 
-// 是否已测量过真实高度
-let heightMeasured = false;
-
-// ===== 外部依赖引用（由 app.js 注入） =====
-let _formatBeijingTime = null;
-let _showToast = null;
-let _fallbackCopy = null;
-let _saveScrollPosition = null;
-
-function setDependencies(formatBeijingTime, showToast, fallbackCopy, saveScrollPosition) {
-    _formatBeijingTime = formatBeijingTime;
-    _showToast = showToast;
-    _fallbackCopy = fallbackCopy;
-    _saveScrollPosition = saveScrollPosition;
-}
+// ===== 固定间距值（与CSS一致） =====
+const ITEM_BOTTOM_GAP = 8; // 每条消息底部间距
 
 function initRenderer(messages, settingsObj, deleteFn, confirmFn, container) {
     allMessages = messages;
@@ -46,14 +33,31 @@ function setMessages(messages) {
     buildHeightCache();
 }
 
-// ===== 预估消息高度（仅用于初始占位，实际会被测量覆盖） =====
+// ===== 精准预估消息高度 =====
 function estimateItemHeight(msg) {
     const text = msg._text || '';
     const charCount = text.length;
+    
+    // 固定部分：头像(40px) + 名称行(22px) + 上下内边距
+    let baseHeight = 45;
+    
+    // 气泡高度：根据字符数精准估算
+    // 每行约20个中文字符，行高约20px，加上内边距
     const lineWidth = 20;
+    const lineHeight = 20;
     const lines = Math.max(1, Math.ceil(charCount / lineWidth));
-    const bubbleHeight = lines * 22 + 16;
-    return 52 + bubbleHeight + 34;
+    const bubbleHeight = lines * lineHeight + 12; // 12px 为气泡内边距
+    
+    baseHeight += bubbleHeight;
+    
+    // 按钮区域（复制/删除图标）
+    baseHeight += 24;
+    
+    // 底部固定间距
+    baseHeight += ITEM_BOTTOM_GAP;
+    
+    // 确保最小高度
+    return Math.max(95, baseHeight);
 }
 
 // ===== 构建高度缓存 =====
@@ -62,19 +66,20 @@ function buildHeightCache() {
     itemHeights = new Array(count);
     itemOffsets = new Array(count);
     totalHeight = 0;
+    
     for (let i = 0; i < count; i++) {
         const h = estimateItemHeight(allMessages[i]);
         itemHeights[i] = h;
         itemOffsets[i] = totalHeight;
         totalHeight += h;
     }
-    heightMeasured = false;
 }
 
+// ===== 根据滚动位置查找可见范围 =====
 function findVisibleRange(scrollTop, containerHeight) {
     const count = allMessages.length;
     if (count === 0) return { start: 0, end: 0 };
-
+    
     let start = 0;
     let end = count - 1;
     while (start < end) {
@@ -86,14 +91,14 @@ function findVisibleRange(scrollTop, containerHeight) {
         }
     }
     start = Math.max(0, start - BUFFER_SIZE);
-
+    
     const bottom = scrollTop + containerHeight;
     end = start;
     while (end < count && itemOffsets[end] < bottom + BUFFER_SIZE * 100) {
         end++;
     }
     end = Math.min(count, end + BUFFER_SIZE);
-
+    
     return { start, end };
 }
 
@@ -118,7 +123,7 @@ function createMessageElement(msg, index) {
         displayName = settings.botName && settings.botName !== 'Bot' ? settings.botName : (msg._botName || 'Bot');
     }
     const avatar = isUser ? settings.userAvatar : settings.botAvatar;
-    const time = _formatBeijingTime ? _formatBeijingTime(msg.create_time) : '';
+    const time = formatBeijingTime(msg.create_time);
 
     const item = document.createElement('div');
     item.className = 'msg-item';
@@ -165,13 +170,15 @@ function createMessageElement(msg, index) {
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'msg-action-btn copy-btn';
-    copyBtn.textContent = '复制';
+    copyBtn.innerHTML = getCopyIcon();
+    copyBtn.title = '复制';
     copyBtn.dataset.action = 'copy';
     copyBtn.dataset.index = index;
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'msg-action-btn delete-btn';
-    deleteBtn.textContent = '删除';
+    deleteBtn.innerHTML = getDeleteIcon();
+    deleteBtn.title = '删除';
     deleteBtn.dataset.action = 'delete';
     deleteBtn.dataset.index = index;
 
@@ -203,20 +210,9 @@ function setupMessageEvents(container) {
         if (action === 'copy') {
             const text = msg._text || '';
             if (navigator.clipboard) {
-                navigator.clipboard.writeText(text).then(() => _showToast ? _showToast('✅ 已复制') : alert('已复制'));
+                navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
             } else {
-                if (_fallbackCopy) {
-                    _fallbackCopy(text);
-                } else {
-                    const ta = document.createElement('textarea');
-                    ta.value = text;
-                    ta.style.cssText = 'position:fixed;opacity:0;';
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-                    if (_showToast) _showToast('✅ 已复制');
-                }
+                fallbackCopy(text);
             }
             e.stopPropagation();
         } else if (action === 'delete') {
@@ -338,9 +334,7 @@ function setupScrollListener(container) {
     container.addEventListener('scroll', function() {
         if (allMessages.length === 0) return;
 
-        if (_saveScrollPosition) {
-            _saveScrollPosition(container);
-        }
+        saveScrollPosition(container);
 
         if (scrollFrameId) {
             cancelAnimationFrame(scrollFrameId);
@@ -394,4 +388,40 @@ function rebuildAfterDelete() {
     if (messagesContainerRef) {
         fullRebuild(messagesContainerRef);
     }
+}
+
+// 需要外部提供的工具函数（占位，实际由主程序提供）
+function formatBeijingTime(isoStr) {
+    if (!isoStr) return '未知时间';
+    try {
+        const date = new Date(isoStr);
+        if (isNaN(date.getTime())) return isoStr;
+        const beijing = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+        const y = beijing.getUTCFullYear();
+        const m = String(beijing.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(beijing.getUTCDate()).padStart(2, '0');
+        const h = String(beijing.getUTCHours()).padStart(2, '0');
+        const min = String(beijing.getUTCMinutes()).padStart(2, '0');
+        return y + '-' + m + '-' + d + ' ' + h + ':' + min;
+    } catch (e) {
+        return isoStr;
+    }
+}
+
+function showToast(msg) {
+    // 占位，由主程序实现
+    console.log('Toast:', msg);
+}
+
+function fallbackCopy(text) {
+    // 占位，由主程序实现
+    console.log('Copy:', text);
+}
+
+function getCopyIcon() {
+    return `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+}
+
+function getDeleteIcon() {
+    return `<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
 }
