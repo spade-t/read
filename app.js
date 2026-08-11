@@ -1,15 +1,3 @@
-问题找到了。`uploadZone.style.display = 'none'` 导致上传区域隐藏，但解析失败或完成后没有正确恢复，同时进度条也没有正确显示。
-
-修复方案：
-1. 上传时隐藏上传区域，显示进度条（进度条已存在）
-2. 解析完成后显示消息列表
-3. 失败时恢复上传区域
-
----
-
-## 修复后的 app.js（完整替换）
-
-```javascript
 (function() {
     'use strict';
 
@@ -347,7 +335,9 @@
         const reader = new FileReader();
         reader.onprogress = function(e) {
             if (e.total > 0) {
-                onProgress(Math.round((e.loaded / e.total) * 100));
+                const progress = Math.round((e.loaded / e.total) * 100);
+                // 只传递 progress 数值给回调
+                onProgress(progress);
             }
         };
         reader.onload = function(e) {
@@ -484,7 +474,8 @@
 
     // ===== 虚拟滚动 - 精确测量 + 缓存 =====
 
-    function createMeasureElement(msg, index) {
+    // 创建消息元素（用于测量）
+    function createMeasureElement(msg, index, containerWidth) {
         const isUser = msg._userType === 'user';
         let displayName;
         if (isUser) {
@@ -499,15 +490,13 @@
         item.className = 'msg-item';
         item.dataset.index = index;
         item.style.position = 'relative';
-        item.style.left = '0';
-        item.style.right = '0';
-        item.style.top = '0';
-        item.style.height = 'auto';
         item.style.visibility = 'hidden';
         item.style.position = 'absolute';
         item.style.left = '-9999px';
         item.style.top = '-9999px';
-        item.style.width = messagesContainer.clientWidth - 20 + 'px';
+        item.style.width = Math.max(300, containerWidth - 20) + 'px';
+        item.style.height = 'auto';
+        item.style.paddingBottom = '10px';
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -562,30 +551,49 @@
         return item;
     }
 
+    // 测量所有消息的真实高度
     function measureAllMessages() {
         const total = allMessages.length;
         if (total === 0) return;
 
+        // 获取容器宽度，如果为0则使用默认值
+        let containerWidth = messagesContainer.clientWidth || 600;
+
+        // 创建隐藏容器
         const measureContainer = document.createElement('div');
-        measureContainer.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:' + (messagesContainer.clientWidth - 20) + 'px;';
+        measureContainer.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:' + containerWidth + 'px;pointer-events:none;';
         document.body.appendChild(measureContainer);
 
+        // 批量创建元素
         const fragment = document.createDocumentFragment();
-        for (let i = 0; i < total; i++) {
-            const el = createMeasureElement(allMessages[i], i);
-            fragment.appendChild(el);
+        // 限制单次测量数量，避免卡顿
+        const batchSize = 500;
+        const totalBatches = Math.ceil(total / batchSize);
+
+        for (let batch = 0; batch < totalBatches; batch++) {
+            const start = batch * batchSize;
+            const end = Math.min(start + batchSize, total);
+            for (let i = start; i < end; i++) {
+                const el = createMeasureElement(allMessages[i], i, containerWidth);
+                fragment.appendChild(el);
+            }
         }
         measureContainer.appendChild(fragment);
 
+        // 强制回流，确保所有元素已渲染
         measureContainer.offsetHeight;
 
+        // 读取每个元素的高度
         const items = measureContainer.querySelectorAll('.msg-item');
         itemHeights = new Array(total);
+        let maxH = 60;
         for (let i = 0; i < items.length; i++) {
             const h = items[i].offsetHeight;
             itemHeights[i] = Math.max(h, 60);
+            if (h > maxH) maxH = h;
         }
 
+        // 计算偏移
         itemOffsets = new Array(total);
         totalHeight = 0;
         for (let i = 0; i < total; i++) {
@@ -595,6 +603,7 @@
 
         heightMeasured = true;
 
+        // 清理隐藏容器
         document.body.removeChild(measureContainer);
     }
 
@@ -1375,6 +1384,7 @@
         progressWrap.classList.remove('show');
         fileInput.value = '';
         isDataLoaded = false;
+        heightMeasured = false;
         if (scrollViewport) {
             scrollViewport.innerHTML = '';
         }
@@ -1390,7 +1400,7 @@
 
         isParsing = true;
 
-        // 显示进度条，隐藏上传区域
+        // 重置界面
         uploadZone.style.display = 'none';
         progressWrap.classList.add('show');
         progressBar.style.width = '0%';
@@ -1398,96 +1408,120 @@
         pname.textContent = file.name;
         pdetail.textContent = '读取文件中...';
 
-        parseJSONFileComplete(
-            file,
-            (progress) => {
-                const p = Math.round(progress * 0.3);
-                progressBar.style.width = p + '%';
-                pstatus.textContent = p + '%';
-                pdetail.textContent = '解析中 ' + progress + '%';
-            },
-            async (messages, botName) => {
-                progressBar.style.width = '30%';
-                pstatus.textContent = '30%';
-                pdetail.textContent = '正在准备渲染...';
+        // 使用 try-catch 包裹整个流程，防止异常导致界面卡死
+        try {
+            parseJSONFileComplete(
+                file,
+                function(progress) {
+                    // 解析阶段进度：0-30%
+                    const p = Math.round(progress * 0.3);
+                    progressBar.style.width = p + '%';
+                    pstatus.textContent = p + '%';
+                    pdetail.textContent = '解析中 ' + progress + '%';
+                },
+                async function(messages, botName) {
+                    try {
+                        // 解析完成：30%
+                        progressBar.style.width = '30%';
+                        pstatus.textContent = '30%';
+                        pdetail.textContent = '正在准备渲染...';
 
-                if (messages.length === 0) {
-                    isParsing = false;
-                    showToast('❌ 未解析到任何消息');
-                    progressWrap.classList.remove('show');
-                    uploadZone.style.display = 'flex';
-                    return;
-                }
+                        if (messages.length === 0) {
+                            isParsing = false;
+                            showToast('❌ 未解析到任何消息');
+                            progressWrap.classList.remove('show');
+                            uploadZone.style.display = 'flex';
+                            return;
+                        }
 
-                messages.sort((a, b) => (a.create_time || '').localeCompare(b.create_time || ''));
-                allMessages = messages;
-                if (botName && botName !== 'Bot') settings.botName = botName;
+                        messages.sort((a, b) => (a.create_time || '').localeCompare(b.create_time || ''));
+                        allMessages = messages;
+                        if (botName && botName !== 'Bot') settings.botName = botName;
 
-                progressBar.style.width = '40%';
-                pstatus.textContent = '40%';
-                pdetail.textContent = '正在测量消息高度...';
+                        // 40%：开始测量高度
+                        progressBar.style.width = '40%';
+                        pstatus.textContent = '40%';
+                        pdetail.textContent = '正在测量消息高度...';
 
-                await new Promise(r => requestAnimationFrame(r));
+                        // 让 UI 更新
+                        await new Promise(function(r) { setTimeout(r, 50); });
 
-                measureAllMessages();
+                        // 测量所有消息的真实高度
+                        measureAllMessages();
 
-                progressBar.style.width = '70%';
-                pstatus.textContent = '70%';
-                pdetail.textContent = '测量完成，正在保存...';
+                        // 65%：测量完成
+                        progressBar.style.width = '65%';
+                        pstatus.textContent = '65%';
+                        pdetail.textContent = '测量完成，正在保存...';
 
-                await new Promise(r => requestAnimationFrame(r));
+                        await new Promise(function(r) { setTimeout(r, 50); });
 
-                try {
-                    await clearAllMessagesDB();
-                    for (let i = 0; i < allMessages.length; i += 5000) {
-                        await saveMessagesToDB(allMessages.slice(i, i + 5000));
-                        const saveProgress = 70 + Math.round((i / allMessages.length) * 25);
-                        progressBar.style.width = Math.min(95, saveProgress) + '%';
-                        pstatus.textContent = Math.min(95, saveProgress) + '%';
-                        pdetail.textContent = '保存中 ' + Math.min(95, saveProgress) + '%';
-                    }
-                    await saveSettingsToDB(settings);
+                        // 保存到 IndexedDB
+                        await clearAllMessagesDB();
+                        const batchSize = 5000;
+                        for (let i = 0; i < allMessages.length; i += batchSize) {
+                            const batch = allMessages.slice(i, i + batchSize);
+                            await saveMessagesToDB(batch);
+                            // 更新进度 65-95%
+                            const saveProgress = 65 + Math.round((i / allMessages.length) * 30);
+                            progressBar.style.width = Math.min(95, saveProgress) + '%';
+                            pstatus.textContent = Math.min(95, saveProgress) + '%';
+                            pdetail.textContent = '保存中 ' + Math.min(95, saveProgress) + '%';
+                        }
+                        await saveSettingsToDB(settings);
 
-                    progressBar.style.width = '95%';
-                    pstatus.textContent = '95%';
-                    pdetail.textContent = '即将完成...';
+                        // 95%
+                        progressBar.style.width = '95%';
+                        pstatus.textContent = '95%';
+                        pdetail.textContent = '即将完成...';
 
-                    await new Promise(r => requestAnimationFrame(r));
+                        await new Promise(function(r) { setTimeout(r, 50); });
 
-                    isDataLoaded = true;
-                    heightMeasured = true;
-                    showMessagesView();
-                    buildViewport();
-                    fullRebuild();
+                        isDataLoaded = true;
+                        heightMeasured = true;
+                        showMessagesView();
+                        buildViewport();
+                        fullRebuild();
 
-                    progressBar.style.width = '100%';
-                    pstatus.textContent = '100%';
-                    pdetail.textContent = '✅ 完成！共 ' + allMessages.length.toLocaleString() + ' 条消息';
-                    showToast('✅ 导入完成');
+                        // 100%
+                        progressBar.style.width = '100%';
+                        pstatus.textContent = '100%';
+                        pdetail.textContent = '✅ 完成！共 ' + allMessages.length.toLocaleString() + ' 条消息';
+                        showToast('✅ 导入完成');
 
-                    setTimeout(() => {
+                        setTimeout(function() {
+                            progressWrap.classList.remove('show');
+                        }, 800);
+
+                        setTimeout(function() {
+                            messagesContainer.scrollTop = 0;
+                            localStorage.setItem('chat_scroll_top', '0');
+                        }, 100);
+
+                        isParsing = false;
+                    } catch (err) {
+                        isParsing = false;
+                        showToast('❌ 保存失败: ' + err.message);
                         progressWrap.classList.remove('show');
-                    }, 800);
-
-                    setTimeout(() => {
-                        messagesContainer.scrollTop = 0;
-                        localStorage.setItem('chat_scroll_top', '0');
-                    }, 100);
-
-                } catch (err) {
-                    showToast('❌ 保存失败');
+                        uploadZone.style.display = 'flex';
+                        console.error(err);
+                    }
+                },
+                function(err) {
+                    isParsing = false;
+                    showToast('❌ ' + err);
                     progressWrap.classList.remove('show');
                     uploadZone.style.display = 'flex';
+                    console.error(err);
                 }
-                isParsing = false;
-            },
-            (err) => {
-                isParsing = false;
-                showToast('❌ ' + err);
-                progressWrap.classList.remove('show');
-                uploadZone.style.display = 'flex';
-            }
-        );
+            );
+        } catch (err) {
+            isParsing = false;
+            showToast('❌ 处理失败: ' + err.message);
+            progressWrap.classList.remove('show');
+            uploadZone.style.display = 'flex';
+            console.error(err);
+        }
     }
 
     // ===== 设置面板 =====
@@ -1788,4 +1822,3 @@
     init();
 
 })();
-```
