@@ -70,7 +70,7 @@
     };
     let pendingConfirm = null;
 
-    // 虚拟滚动状态
+    // ===== 虚拟滚动状态 =====
     let scrollViewport = null;
     const BUFFER_SIZE = 5;
     let visibleStart = 0;
@@ -79,6 +79,9 @@
     let itemHeights = [];
     let itemOffsets = [];
     let totalHeight = 0;
+
+    // ===== 固定间距 =====
+    const ITEM_BOTTOM_GAP = 6; // CSS 中 .msg-item 的 padding-bottom
 
     // 搜索状态
     let searchMatchCache = [];
@@ -469,20 +472,32 @@
         });
     }
 
-    // ===== 虚拟滚动 - 固定高度（预计算） =====
+    // ===== 虚拟滚动 - 精准高度估算 =====
 
     function estimateItemHeight(msg) {
         const text = msg._text || '';
         const charCount = text.length;
-        // 根据实际CSS样式估算：行高1.7 * 16px ≈ 27px，每行约20个字符
-        const lineHeight = 27;
-        const charsPerLine = 20;
-        const lines = Math.max(1, Math.ceil(charCount / charsPerLine));
-        const bubbleHeight = lines * lineHeight + 16; // 气泡内边距16px
-        const headerHeight = 22; // 名称+时间
-        const actionsHeight = 34; // 按钮区域（含间距）
-        const bottomGap = 10; // 固定间距（与CSS一致）
-        return Math.max(100, headerHeight + bubbleHeight + actionsHeight + bottomGap);
+
+        // 固定部分：头像(40px) + 名称行(22px) + 上下内边距
+        let baseHeight = 45;
+
+        // 气泡高度：根据字符数精准估算
+        // 每行约20个中文字符，行高约20px，加上内边距
+        const lineWidth = 20;
+        const lineHeight = 20;
+        const lines = Math.max(1, Math.ceil(charCount / lineWidth));
+        const bubbleHeight = lines * lineHeight + 12;
+
+        baseHeight += bubbleHeight;
+
+        // 按钮区域（复制/删除图标）
+        baseHeight += 24;
+
+        // 底部固定间距
+        baseHeight += ITEM_BOTTOM_GAP;
+
+        // 确保最小高度
+        return Math.max(95, baseHeight);
     }
 
     function buildHeightCache() {
@@ -490,6 +505,7 @@
         itemHeights = new Array(count);
         itemOffsets = new Array(count);
         totalHeight = 0;
+
         for (let i = 0; i < count; i++) {
             const h = estimateItemHeight(allMessages[i]);
             itemHeights[i] = h;
@@ -504,17 +520,15 @@
 
         let start = 0;
         let end = count - 1;
-        // 二分查找起始索引
-        let lo = 0, hi = count - 1;
-        while (lo < hi) {
-            const mid = Math.floor((lo + hi) / 2);
+        while (start < end) {
+            const mid = Math.floor((start + end) / 2);
             if (itemOffsets[mid] + itemHeights[mid] < scrollTop) {
-                lo = mid + 1;
+                start = mid + 1;
             } else {
-                hi = mid;
+                end = mid;
             }
         }
-        start = Math.max(0, lo - BUFFER_SIZE);
+        start = Math.max(0, start - BUFFER_SIZE);
 
         const bottom = scrollTop + containerHeight;
         end = start;
@@ -589,6 +603,7 @@
         content.textContent = msg._text || '[空消息]';
         bubble.appendChild(content);
 
+        // ===== 操作按钮 =====
         const actions = document.createElement('div');
         actions.className = 'msg-actions';
 
@@ -676,12 +691,20 @@
         const start = range.start;
         const end = range.end;
 
-        // 检查是否需要重建
+        const children = scrollViewport.children;
+        for (let i = 0; i < children.length; i++) {
+            const child = children[i];
+            if (child.dataset && child.dataset.index !== undefined) {
+                const idx = parseInt(child.dataset.index);
+                child.style.top = itemOffsets[idx] + 'px';
+                child.style.height = itemHeights[idx] + 'px';
+            }
+        }
+
         if (Math.abs(start - visibleStart) > 2 || Math.abs(end - visibleEnd) > 2) {
             visibleStart = start;
             visibleEnd = end;
 
-            const children = scrollViewport.querySelectorAll('.msg-item');
             const childMap = {};
             for (let i = 0; i < children.length; i++) {
                 const child = children[i];
@@ -695,7 +718,6 @@
                 needed.add(i);
             }
 
-            // 移除不需要的
             const toRemove = [];
             for (const idx in childMap) {
                 if (!needed.has(parseInt(idx))) {
@@ -707,7 +729,6 @@
                 delete childMap[el.dataset.index];
             }
 
-            // 添加缺失的
             const fragment = document.createDocumentFragment();
             for (let i = start; i < end; i++) {
                 if (!childMap[i]) {
@@ -720,7 +741,6 @@
                 scrollViewport.appendChild(fragment);
             }
 
-            // 更新所有可见消息的位置
             for (const idx in childMap) {
                 const el = childMap[idx];
                 const index = parseInt(idx);
@@ -728,33 +748,17 @@
                 el.style.height = itemHeights[index] + 'px';
                 el.dataset.index = index;
             }
-        } else {
-            // 只更新位置（高度不变）
-            const children = scrollViewport.querySelectorAll('.msg-item');
-            children.forEach(el => {
-                const idx = parseInt(el.dataset.index);
-                if (!isNaN(idx)) {
-                    el.style.top = itemOffsets[idx] + 'px';
-                }
-            });
         }
     }
 
     function jumpToMessage(index) {
         if (index < 0 || index >= allMessages.length) return;
-        // 先确保目标在可见范围内
-        const targetOffset = itemOffsets[index];
-        const targetHeight = itemHeights[index];
-        const containerHeight = messagesContainer.clientHeight;
-        // 如果目标不在当前视口中，调整滚动位置
-        const currentScroll = messagesContainer.scrollTop;
-        if (targetOffset < currentScroll || targetOffset + targetHeight > currentScroll + containerHeight) {
-            // 滚动到目标消息
-            const newScroll = Math.max(0, targetOffset - containerHeight / 3);
-            messagesContainer.scrollTo({ top: newScroll, behavior: 'smooth' });
-        }
 
-        // 高亮目标消息
+        const targetOffset = itemOffsets[index];
+        const containerHeight = messagesContainer.clientHeight;
+        const newScroll = Math.max(0, targetOffset - containerHeight / 3);
+        messagesContainer.scrollTo({ top: newScroll, behavior: 'smooth' });
+
         setTimeout(() => {
             if (scrollViewport) {
                 const items = scrollViewport.querySelectorAll('.msg-item');
@@ -800,7 +804,6 @@
                 return;
             }
 
-            // 点击空白取消选中
             if (e.target === messagesContainer || e.target.id === 'scroll-viewport' || e.target === document.body) {
                 if (selectedIndex !== -1) {
                     selectedIndex = -1;
@@ -1585,8 +1588,10 @@
         renderCalendar(calendarYear, calendarMonthIndex);
     });
 
+    // ===== 设置图标 =====
     settingsBtn.innerHTML = getSettingsIcon();
 
+    // ===== 滚动事件 =====
     messagesContainer.addEventListener('scroll', function() {
         if (!isDataLoaded || allMessages.length === 0) return;
 
@@ -1602,6 +1607,7 @@
         });
     });
 
+    // ===== Resize =====
     let resizeTimeout = null;
     window.addEventListener('resize', function() {
         if (resizeTimeout) clearTimeout(resizeTimeout);
@@ -1612,10 +1618,12 @@
         }, 300);
     });
 
+    // ===== 页面关闭保存 =====
     window.addEventListener('beforeunload', function() {
         saveScrollPosition();
     });
 
+    // ===== 初始化 =====
     async function init() {
         await loadSettings();
         setupMessageEvents();
