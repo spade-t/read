@@ -788,38 +788,46 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     min-height: 100%;
 }
 
-/* ===== 消息条目 - 固定高度，由 JS 控制 ===== */
+/* ===== 消息条目 - 统一固定间距，隔离操作按钮 ===== */
 .msg-item {
     position: absolute;
     left: 0;
     right: 0;
-    display: flex;
-    flex-direction: column;
     overflow: visible;
-    padding-bottom: 10px;   /* 固定间距 */
+    /* 取消原有padding-bottom，改用margin统一固定间距 */
+    padding: 0;
+    /* 每条消息底部预留统一固定间距，同时容纳操作按钮 */
+    padding-bottom: 16px;
 }
+/* 最后一条消息同样保留间距，全局完全统一 */
 .msg-item:last-child {
-    padding-bottom: 0;
+    padding-bottom: 16px;
 }
+
+/* 选中状态气泡描边不变 */
 .msg-item.selected .msg-bubble {
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
 }
-.msg-item .msg-actions {
+
+/* 操作按钮区域：完全内置在当前条目内，不会溢出到下一条 */
+.msg-actions {
     display: none;
-    margin-top: 4px;
+    margin-top: 6px;
     padding: 0 4px;
+    gap: 8px;
 }
 .msg-item.selected .msg-actions {
     display: flex;
-    gap: 8px;
 }
 
+/* 消息行基础布局 */
 .msg-row {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    max-width: 92%;
+    /* 限制消息整体最大宽度，为气泡自适应打底 */
+    max-width: 88%;
 }
 .msg-row.user {
     align-self: flex-end;
@@ -850,7 +858,8 @@ body.dark-mode .msg-avatar {
     display: flex;
     flex-direction: column;
     min-width: 50px;
-    max-width: 100%;
+    /* 核心：气泡最大宽度限制，不会铺满屏幕 */
+    max-width: min(600px, 72vw);
 }
 .msg-header {
     display: flex;
@@ -890,6 +899,10 @@ body.dark-mode .msg-avatar {
     border-top-left-radius: 4px;
     color: var(--text-color);
     transition: background 0.3s, color 0.3s, box-shadow 0.3s;
+    /* 关键：宽度自适应内容，不强制填满父容器 */
+    width: fit-content;
+    /* 最大宽度和父层msg-body保持一致 */
+    max-width: 100%;
 }
 .msg-row.user .msg-bubble {
     background: var(--bubble-user-bg);
@@ -1425,7 +1438,10 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
         padding: 6px 6px 4px 6px;
     }
     .msg-row {
-        max-width: 94%;
+        max-width: 92%;
+    }
+    .msg-body {
+        max-width: 78vw;
     }
     .msg-bubble {
         font-size: 15px;
@@ -1537,6 +1553,9 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
         font-size: 13px;
         padding: 4px 24px 4px 10px;
         height: 28px;
+    }
+    .msg-body {
+        max-width: 82vw;
     }
     .msg-bubble {
         font-size: 14px;
