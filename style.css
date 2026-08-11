@@ -788,7 +788,7 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     min-height: 100%;
 }
 
-/* ===== 消息条目 - 动态高度，固定间距 ===== */
+/* ===== 消息条目 - 固定高度，由 JS 控制 ===== */
 .msg-item {
     position: absolute;
     left: 0;
@@ -796,7 +796,7 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     display: flex;
     flex-direction: column;
     overflow: visible;
-    padding-bottom: 10px;   /* ★ 固定间距：所有消息底部间距统一 */
+    padding-bottom: 10px;   /* 固定间距 */
 }
 .msg-item:last-child {
     padding-bottom: 0;
