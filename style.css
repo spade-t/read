@@ -788,7 +788,7 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     min-height: 100%;
 }
 
-/* ===== 消息条目 - 固定高度，由 JS 控制 ===== */
+/* ===== 消息条目 - 高度由 JS 精确控制 ===== */
 .msg-item {
     position: absolute;
     left: 0;
