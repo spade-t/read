@@ -1,3 +1,15 @@
+问题找到了。`uploadZone.style.display = 'none'` 导致上传区域隐藏，但解析失败或完成后没有正确恢复，同时进度条也没有正确显示。
+
+修复方案：
+1. 上传时隐藏上传区域，显示进度条（进度条已存在）
+2. 解析完成后显示消息列表
+3. 失败时恢复上传区域
+
+---
+
+## 修复后的 app.js（完整替换）
+
+```javascript
 (function() {
     'use strict';
 
@@ -472,7 +484,6 @@
 
     // ===== 虚拟滚动 - 精确测量 + 缓存 =====
 
-    // 创建消息元素（用于测量）
     function createMeasureElement(msg, index) {
         const isUser = msg._userType === 'user';
         let displayName;
@@ -530,7 +541,6 @@
 
         const actions = document.createElement('div');
         actions.className = 'msg-actions';
-        // 测量时显示占位按钮，确保高度准确
         const copyBtn = document.createElement('button');
         copyBtn.className = 'msg-action-btn copy-btn';
         copyBtn.innerHTML = getCopyIcon();
@@ -552,12 +562,10 @@
         return item;
     }
 
-    // 测量所有消息的真实高度
     function measureAllMessages() {
         const total = allMessages.length;
         if (total === 0) return;
 
-        // 创建隐藏容器
         const measureContainer = document.createElement('div');
         measureContainer.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:' + (messagesContainer.clientWidth - 20) + 'px;';
         document.body.appendChild(measureContainer);
@@ -569,10 +577,8 @@
         }
         measureContainer.appendChild(fragment);
 
-        // 强制回流，确保所有元素已渲染
         measureContainer.offsetHeight;
 
-        // 读取每个元素的高度
         const items = measureContainer.querySelectorAll('.msg-item');
         itemHeights = new Array(total);
         for (let i = 0; i < items.length; i++) {
@@ -580,7 +586,6 @@
             itemHeights[i] = Math.max(h, 60);
         }
 
-        // 计算偏移
         itemOffsets = new Array(total);
         totalHeight = 0;
         for (let i = 0; i < total; i++) {
@@ -590,7 +595,6 @@
 
         heightMeasured = true;
 
-        // 清理隐藏容器
         document.body.removeChild(measureContainer);
     }
 
@@ -712,7 +716,6 @@
         row.appendChild(body);
         item.appendChild(row);
 
-        // 点击消息选中
         item.addEventListener('click', function(e) {
             if (e.target.closest('.msg-action-btn')) return;
             const idx = parseInt(this.dataset.index);
@@ -900,7 +903,6 @@
             allMessages.splice(index, 1);
             if (selectedIndex === index) selectedIndex = -1;
             else if (selectedIndex > index) selectedIndex--;
-            // 重建高度缓存
             measureAllMessages();
             fullRebuild();
             showToast('🗑️ 已删除');
@@ -1337,7 +1339,6 @@
                 isDataLoaded = true;
                 showMessagesView();
                 buildViewport();
-                // 测量高度
                 measureAllMessages();
                 fullRebuild();
                 const savedPos = loadScrollPosition();
@@ -1388,6 +1389,8 @@
         }
 
         isParsing = true;
+
+        // 显示进度条，隐藏上传区域
         uploadZone.style.display = 'none';
         progressWrap.classList.add('show');
         progressBar.style.width = '0%';
@@ -1398,14 +1401,12 @@
         parseJSONFileComplete(
             file,
             (progress) => {
-                // 解析阶段进度：0-30%
                 const p = Math.round(progress * 0.3);
                 progressBar.style.width = p + '%';
                 pstatus.textContent = p + '%';
                 pdetail.textContent = '解析中 ' + progress + '%';
             },
             async (messages, botName) => {
-                // 解析完成：30%
                 progressBar.style.width = '30%';
                 pstatus.textContent = '30%';
                 pdetail.textContent = '正在准备渲染...';
@@ -1422,18 +1423,14 @@
                 allMessages = messages;
                 if (botName && botName !== 'Bot') settings.botName = botName;
 
-                // 40%：开始测量高度
                 progressBar.style.width = '40%';
                 pstatus.textContent = '40%';
                 pdetail.textContent = '正在测量消息高度...';
 
-                // 使用 requestAnimationFrame 让 UI 更新
                 await new Promise(r => requestAnimationFrame(r));
 
-                // 测量所有消息的真实高度
                 measureAllMessages();
 
-                // 70%：测量完成
                 progressBar.style.width = '70%';
                 pstatus.textContent = '70%';
                 pdetail.textContent = '测量完成，正在保存...';
@@ -1444,7 +1441,6 @@
                     await clearAllMessagesDB();
                     for (let i = 0; i < allMessages.length; i += 5000) {
                         await saveMessagesToDB(allMessages.slice(i, i + 5000));
-                        // 更新进度 70-95%
                         const saveProgress = 70 + Math.round((i / allMessages.length) * 25);
                         progressBar.style.width = Math.min(95, saveProgress) + '%';
                         pstatus.textContent = Math.min(95, saveProgress) + '%';
@@ -1452,7 +1448,6 @@
                     }
                     await saveSettingsToDB(settings);
 
-                    // 95%
                     progressBar.style.width = '95%';
                     pstatus.textContent = '95%';
                     pdetail.textContent = '即将完成...';
@@ -1465,7 +1460,6 @@
                     buildViewport();
                     fullRebuild();
 
-                    // 100%
                     progressBar.style.width = '100%';
                     pstatus.textContent = '100%';
                     pdetail.textContent = '✅ 完成！共 ' + allMessages.length.toLocaleString() + ' 条消息';
@@ -1475,7 +1469,6 @@
                         progressWrap.classList.remove('show');
                     }, 800);
 
-                    // 滚动到顶部
                     setTimeout(() => {
                         messagesContainer.scrollTop = 0;
                         localStorage.setItem('chat_scroll_top', '0');
@@ -1483,6 +1476,8 @@
 
                 } catch (err) {
                     showToast('❌ 保存失败');
+                    progressWrap.classList.remove('show');
+                    uploadZone.style.display = 'flex';
                 }
                 isParsing = false;
             },
@@ -1744,7 +1739,6 @@
         if (resizeTimeout) clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
             if (isDataLoaded && allMessages.length > 0 && heightMeasured) {
-                // 重新测量高度（窗口变化可能影响宽度）
                 measureAllMessages();
                 fullRebuild();
             }
@@ -1783,7 +1777,6 @@
             }
             showMessagesView();
             buildViewport();
-            // 数据已包含测量结果
             fullRebuild();
             const savedPos = loadScrollPosition();
             setTimeout(() => {
@@ -1795,3 +1788,4 @@
     init();
 
 })();
+```
