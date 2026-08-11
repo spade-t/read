@@ -76,10 +76,9 @@
     let visibleStart = 0;
     let visibleEnd = 0;
     let scrollFrameId = null;
-    let itemHeights = [];     // 每条消息的实际高度（px）
-    let itemOffsets = [];     // 每条消息的偏移量（px）
+    let itemHeights = [];
+    let itemOffsets = [];
     let totalHeight = 0;
-    let heightInitialized = false; // 是否已测量过高度
 
     // 搜索状态
     let searchMatchCache = [];
@@ -470,54 +469,20 @@
         });
     }
 
-    // ===== 虚拟滚动 - 动态高度核心逻辑 =====
+    // ===== 虚拟滚动 - 固定高度（预计算） =====
 
-    // 初始估算高度（用于首次布局）
     function estimateItemHeight(msg) {
         const text = msg._text || '';
         const charCount = text.length;
-        // 粗略估算：每行约20个字符，行高24px，加上头像、名称、按钮、间距
-        const lines = Math.max(1, Math.ceil(charCount / 20));
-        const bubbleHeight = lines * 24 + 16;
-        return 52 + bubbleHeight + 30 + 10; // 52(头像+名称) + 气泡 + 按钮 + 间距
-    }
-
-    // 测量实际高度并更新缓存
-    function measureAndUpdateHeights() {
-        if (!scrollViewport) return;
-        const items = scrollViewport.querySelectorAll('.msg-item');
-        let changed = false;
-        items.forEach(el => {
-            const idx = parseInt(el.dataset.index);
-            if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
-                const actualHeight = el.offsetHeight;
-                if (actualHeight > 0 && Math.abs(actualHeight - itemHeights[idx]) > 2) {
-                    itemHeights[idx] = actualHeight;
-                    changed = true;
-                }
-            }
-        });
-        if (changed) {
-            // 重新计算偏移
-            let offset = 0;
-            for (let i = 0; i < itemHeights.length; i++) {
-                itemOffsets[i] = offset;
-                offset += itemHeights[i];
-            }
-            totalHeight = offset;
-            if (scrollViewport) {
-                scrollViewport.style.height = totalHeight + 'px';
-            }
-            // 更新所有可见消息的 top 和 height
-            const children = scrollViewport.querySelectorAll('.msg-item');
-            children.forEach(el => {
-                const idx = parseInt(el.dataset.index);
-                if (!isNaN(idx)) {
-                    el.style.top = itemOffsets[idx] + 'px';
-                    el.style.height = itemHeights[idx] + 'px';
-                }
-            });
-        }
+        // 根据实际CSS样式估算：行高1.7 * 16px ≈ 27px，每行约20个字符
+        const lineHeight = 27;
+        const charsPerLine = 20;
+        const lines = Math.max(1, Math.ceil(charCount / charsPerLine));
+        const bubbleHeight = lines * lineHeight + 16; // 气泡内边距16px
+        const headerHeight = 22; // 名称+时间
+        const actionsHeight = 34; // 按钮区域（含间距）
+        const bottomGap = 10; // 固定间距（与CSS一致）
+        return Math.max(100, headerHeight + bubbleHeight + actionsHeight + bottomGap);
     }
 
     function buildHeightCache() {
@@ -525,14 +490,12 @@
         itemHeights = new Array(count);
         itemOffsets = new Array(count);
         totalHeight = 0;
-        // 先用估算值填充
         for (let i = 0; i < count; i++) {
             const h = estimateItemHeight(allMessages[i]);
             itemHeights[i] = h;
             itemOffsets[i] = totalHeight;
             totalHeight += h;
         }
-        heightInitialized = false;
     }
 
     function findVisibleRange(scrollTop, containerHeight) {
@@ -593,9 +556,7 @@
         item.style.left = '0';
         item.style.right = '0';
         item.style.top = itemOffsets[index] + 'px';
-        // 先不设置 height，让内容撑开，稍后测量
-        // 但为了布局稳定，先设为 auto
-        item.style.height = 'auto';
+        item.style.height = itemHeights[index] + 'px';
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -698,31 +659,9 @@
 
         const fragment = document.createDocumentFragment();
         for (let i = visibleStart; i < visibleEnd; i++) {
-            const el = createMessageElement(allMessages[i], i);
-            fragment.appendChild(el);
+            fragment.appendChild(createMessageElement(allMessages[i], i));
         }
         viewport.appendChild(fragment);
-
-        // 在下一帧测量实际高度并更新缓存
-        if (window.requestAnimationFrame) {
-            requestAnimationFrame(() => {
-                measureAndUpdateHeights();
-                // 如果高度变化，可能需要重新调整视图
-                if (heightInitialized === false) {
-                    heightInitialized = true;
-                    // 再次渲染确保位置正确
-                    fullRebuild();
-                }
-            });
-        } else {
-            setTimeout(() => {
-                measureAndUpdateHeights();
-                if (heightInitialized === false) {
-                    heightInitialized = true;
-                    fullRebuild();
-                }
-            }, 10);
-        }
 
         updateFooter();
     }
@@ -786,40 +725,16 @@
                 const el = childMap[idx];
                 const index = parseInt(idx);
                 el.style.top = itemOffsets[index] + 'px';
-                // 如果高度缓存已初始化，设置固定高度，否则让内容撑开
-                if (heightInitialized) {
-                    el.style.height = itemHeights[index] + 'px';
-                } else {
-                    el.style.height = 'auto';
-                }
+                el.style.height = itemHeights[index] + 'px';
                 el.dataset.index = index;
             }
-
-            // 测量并更新高度
-            if (heightInitialized === false) {
-                requestAnimationFrame(() => {
-                    measureAndUpdateHeights();
-                    if (heightInitialized === false) {
-                        heightInitialized = true;
-                        fullRebuild();
-                    }
-                });
-            } else {
-                // 测量是否有变化
-                requestAnimationFrame(() => {
-                    measureAndUpdateHeights();
-                });
-            }
         } else {
-            // 只更新位置
+            // 只更新位置（高度不变）
             const children = scrollViewport.querySelectorAll('.msg-item');
             children.forEach(el => {
                 const idx = parseInt(el.dataset.index);
                 if (!isNaN(idx)) {
                     el.style.top = itemOffsets[idx] + 'px';
-                    if (heightInitialized) {
-                        el.style.height = itemHeights[idx] + 'px';
-                    }
                 }
             });
         }
@@ -827,9 +742,19 @@
 
     function jumpToMessage(index) {
         if (index < 0 || index >= allMessages.length) return;
-        const targetScroll = Math.max(0, itemOffsets[index] - messagesContainer.clientHeight / 3);
-        messagesContainer.scrollTo({ top: targetScroll, behavior: 'smooth' });
+        // 先确保目标在可见范围内
+        const targetOffset = itemOffsets[index];
+        const targetHeight = itemHeights[index];
+        const containerHeight = messagesContainer.clientHeight;
+        // 如果目标不在当前视口中，调整滚动位置
+        const currentScroll = messagesContainer.scrollTop;
+        if (targetOffset < currentScroll || targetOffset + targetHeight > currentScroll + containerHeight) {
+            // 滚动到目标消息
+            const newScroll = Math.max(0, targetOffset - containerHeight / 3);
+            messagesContainer.scrollTo({ top: newScroll, behavior: 'smooth' });
+        }
 
+        // 高亮目标消息
         setTimeout(() => {
             if (scrollViewport) {
                 const items = scrollViewport.querySelectorAll('.msg-item');
@@ -875,6 +800,7 @@
                 return;
             }
 
+            // 点击空白取消选中
             if (e.target === messagesContainer || e.target.id === 'scroll-viewport' || e.target === document.body) {
                 if (selectedIndex !== -1) {
                     selectedIndex = -1;
@@ -894,8 +820,6 @@
             allMessages.splice(index, 1);
             if (selectedIndex === index) selectedIndex = -1;
             else if (selectedIndex > index) selectedIndex--;
-            // 重建高度缓存并重新渲染
-            buildHeightCache();
             fullRebuild();
             showToast('🗑️ 已删除');
         } catch (err) {
