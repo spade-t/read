@@ -76,9 +76,10 @@
     let visibleStart = 0;
     let visibleEnd = 0;
     let scrollFrameId = null;
-    let itemHeights = [];
-    let itemOffsets = [];
+    let itemHeights = [];     // 每条消息的实际高度（px）
+    let itemOffsets = [];     // 每条消息的偏移量（px）
     let totalHeight = 0;
+    let heightInitialized = false; // 是否已测量过高度
 
     // 搜索状态
     let searchMatchCache = [];
@@ -96,9 +97,6 @@
     let maxYear = 2026;
     let maxMonth = 7;
     let maxDay = 31;
-
-    // ===== 固定高度（核心修复） =====
-    const FIXED_ITEM_HEIGHT = 150;
 
     // ===== 工具函数 =====
 
@@ -472,12 +470,54 @@
         });
     }
 
-    // ===== 虚拟滚动 =====
+    // ===== 虚拟滚动 - 动态高度核心逻辑 =====
 
-    // ★★★ 核心修复：固定高度，不再估算 ★★★
+    // 初始估算高度（用于首次布局）
     function estimateItemHeight(msg) {
-        // 所有消息固定高度，由 CSS padding-bottom 控制间距
-        return FIXED_ITEM_HEIGHT;
+        const text = msg._text || '';
+        const charCount = text.length;
+        // 粗略估算：每行约20个字符，行高24px，加上头像、名称、按钮、间距
+        const lines = Math.max(1, Math.ceil(charCount / 20));
+        const bubbleHeight = lines * 24 + 16;
+        return 52 + bubbleHeight + 30 + 10; // 52(头像+名称) + 气泡 + 按钮 + 间距
+    }
+
+    // 测量实际高度并更新缓存
+    function measureAndUpdateHeights() {
+        if (!scrollViewport) return;
+        const items = scrollViewport.querySelectorAll('.msg-item');
+        let changed = false;
+        items.forEach(el => {
+            const idx = parseInt(el.dataset.index);
+            if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
+                const actualHeight = el.offsetHeight;
+                if (actualHeight > 0 && Math.abs(actualHeight - itemHeights[idx]) > 2) {
+                    itemHeights[idx] = actualHeight;
+                    changed = true;
+                }
+            }
+        });
+        if (changed) {
+            // 重新计算偏移
+            let offset = 0;
+            for (let i = 0; i < itemHeights.length; i++) {
+                itemOffsets[i] = offset;
+                offset += itemHeights[i];
+            }
+            totalHeight = offset;
+            if (scrollViewport) {
+                scrollViewport.style.height = totalHeight + 'px';
+            }
+            // 更新所有可见消息的 top 和 height
+            const children = scrollViewport.querySelectorAll('.msg-item');
+            children.forEach(el => {
+                const idx = parseInt(el.dataset.index);
+                if (!isNaN(idx)) {
+                    el.style.top = itemOffsets[idx] + 'px';
+                    el.style.height = itemHeights[idx] + 'px';
+                }
+            });
+        }
     }
 
     function buildHeightCache() {
@@ -485,12 +525,14 @@
         itemHeights = new Array(count);
         itemOffsets = new Array(count);
         totalHeight = 0;
+        // 先用估算值填充
         for (let i = 0; i < count; i++) {
             const h = estimateItemHeight(allMessages[i]);
             itemHeights[i] = h;
             itemOffsets[i] = totalHeight;
             totalHeight += h;
         }
+        heightInitialized = false;
     }
 
     function findVisibleRange(scrollTop, containerHeight) {
@@ -499,15 +541,17 @@
 
         let start = 0;
         let end = count - 1;
-        while (start < end) {
-            const mid = Math.floor((start + end) / 2);
+        // 二分查找起始索引
+        let lo = 0, hi = count - 1;
+        while (lo < hi) {
+            const mid = Math.floor((lo + hi) / 2);
             if (itemOffsets[mid] + itemHeights[mid] < scrollTop) {
-                start = mid + 1;
+                lo = mid + 1;
             } else {
-                end = mid;
+                hi = mid;
             }
         }
-        start = Math.max(0, start - BUFFER_SIZE);
+        start = Math.max(0, lo - BUFFER_SIZE);
 
         const bottom = scrollTop + containerHeight;
         end = start;
@@ -549,7 +593,9 @@
         item.style.left = '0';
         item.style.right = '0';
         item.style.top = itemOffsets[index] + 'px';
-        item.style.height = itemHeights[index] + 'px';
+        // 先不设置 height，让内容撑开，稍后测量
+        // 但为了布局稳定，先设为 auto
+        item.style.height = 'auto';
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
@@ -652,9 +698,31 @@
 
         const fragment = document.createDocumentFragment();
         for (let i = visibleStart; i < visibleEnd; i++) {
-            fragment.appendChild(createMessageElement(allMessages[i], i));
+            const el = createMessageElement(allMessages[i], i);
+            fragment.appendChild(el);
         }
         viewport.appendChild(fragment);
+
+        // 在下一帧测量实际高度并更新缓存
+        if (window.requestAnimationFrame) {
+            requestAnimationFrame(() => {
+                measureAndUpdateHeights();
+                // 如果高度变化，可能需要重新调整视图
+                if (heightInitialized === false) {
+                    heightInitialized = true;
+                    // 再次渲染确保位置正确
+                    fullRebuild();
+                }
+            });
+        } else {
+            setTimeout(() => {
+                measureAndUpdateHeights();
+                if (heightInitialized === false) {
+                    heightInitialized = true;
+                    fullRebuild();
+                }
+            }, 10);
+        }
 
         updateFooter();
     }
@@ -669,20 +737,12 @@
         const start = range.start;
         const end = range.end;
 
-        const children = scrollViewport.children;
-        for (let i = 0; i < children.length; i++) {
-            const child = children[i];
-            if (child.dataset && child.dataset.index !== undefined) {
-                const idx = parseInt(child.dataset.index);
-                child.style.top = itemOffsets[idx] + 'px';
-                child.style.height = itemHeights[idx] + 'px';
-            }
-        }
-
+        // 检查是否需要重建
         if (Math.abs(start - visibleStart) > 2 || Math.abs(end - visibleEnd) > 2) {
             visibleStart = start;
             visibleEnd = end;
 
+            const children = scrollViewport.querySelectorAll('.msg-item');
             const childMap = {};
             for (let i = 0; i < children.length; i++) {
                 const child = children[i];
@@ -696,6 +756,7 @@
                 needed.add(i);
             }
 
+            // 移除不需要的
             const toRemove = [];
             for (const idx in childMap) {
                 if (!needed.has(parseInt(idx))) {
@@ -707,6 +768,7 @@
                 delete childMap[el.dataset.index];
             }
 
+            // 添加缺失的
             const fragment = document.createDocumentFragment();
             for (let i = start; i < end; i++) {
                 if (!childMap[i]) {
@@ -719,13 +781,47 @@
                 scrollViewport.appendChild(fragment);
             }
 
+            // 更新所有可见消息的位置
             for (const idx in childMap) {
                 const el = childMap[idx];
                 const index = parseInt(idx);
                 el.style.top = itemOffsets[index] + 'px';
-                el.style.height = itemHeights[index] + 'px';
+                // 如果高度缓存已初始化，设置固定高度，否则让内容撑开
+                if (heightInitialized) {
+                    el.style.height = itemHeights[index] + 'px';
+                } else {
+                    el.style.height = 'auto';
+                }
                 el.dataset.index = index;
             }
+
+            // 测量并更新高度
+            if (heightInitialized === false) {
+                requestAnimationFrame(() => {
+                    measureAndUpdateHeights();
+                    if (heightInitialized === false) {
+                        heightInitialized = true;
+                        fullRebuild();
+                    }
+                });
+            } else {
+                // 测量是否有变化
+                requestAnimationFrame(() => {
+                    measureAndUpdateHeights();
+                });
+            }
+        } else {
+            // 只更新位置
+            const children = scrollViewport.querySelectorAll('.msg-item');
+            children.forEach(el => {
+                const idx = parseInt(el.dataset.index);
+                if (!isNaN(idx)) {
+                    el.style.top = itemOffsets[idx] + 'px';
+                    if (heightInitialized) {
+                        el.style.height = itemHeights[idx] + 'px';
+                    }
+                }
+            });
         }
     }
 
@@ -798,6 +894,8 @@
             allMessages.splice(index, 1);
             if (selectedIndex === index) selectedIndex = -1;
             else if (selectedIndex > index) selectedIndex--;
+            // 重建高度缓存并重新渲染
+            buildHeightCache();
             fullRebuild();
             showToast('🗑️ 已删除');
         } catch (err) {
