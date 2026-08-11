@@ -766,6 +766,7 @@ body.dark-mode #calendar-panel .cal-days .cal-day.today:active {
     background-position: center;
     background-repeat: no-repeat;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     transition: background 0.3s;
 }
 #messages-container::-webkit-scrollbar {
@@ -788,7 +789,7 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     min-height: 100%;
 }
 
-/* ===== 消息条目 - 高度由 JS 精确控制 ===== */
+/* ===== 消息条目 - 修复重叠问题 ===== */
 .msg-item {
     position: absolute;
     left: 0;
@@ -796,7 +797,8 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     display: flex;
     flex-direction: column;
     overflow: visible;
-    padding-bottom: 10px;   /* 固定间距 */
+    padding-bottom: 12px;
+    box-sizing: border-box;
 }
 .msg-item:last-child {
     padding-bottom: 0;
@@ -807,12 +809,15 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
 }
 .msg-item .msg-actions {
     display: none;
-    margin-top: 4px;
+    margin-top: 6px;
     padding: 0 4px;
+    height: auto;
+    min-height: 28px;
 }
 .msg-item.selected .msg-actions {
     display: flex;
     gap: 8px;
+    height: auto;
 }
 
 .msg-row {
@@ -820,6 +825,8 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     align-items: flex-start;
     gap: 8px;
     max-width: 92%;
+    width: 100%;
+    flex-shrink: 0;
 }
 .msg-row.user {
     align-self: flex-end;
@@ -851,6 +858,7 @@ body.dark-mode .msg-avatar {
     flex-direction: column;
     min-width: 50px;
     max-width: 100%;
+    flex-shrink: 0;
 }
 .msg-header {
     display: flex;
@@ -994,6 +1002,7 @@ body.dark-mode .msg-avatar {
     border: none;
     font-family: inherit;
     box-shadow: 0 2px 10px rgba(26, 115, 232, 0.3);
+    touch-action: manipulation;
 }
 #upload-zone .upload-btn:active {
     transform: scale(0.97);
