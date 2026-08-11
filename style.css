@@ -73,7 +73,7 @@ input[type="file"] {
     transition: background 0.3s;
 }
 
-/* ===== 深色模式 ===== */
+/* 深色模式 */
 body.dark-mode {
     --bg-color: #1a1a1a;
     --bg-color-secondary: #252525;
@@ -283,7 +283,7 @@ body.dark-mode #search-clear {
     color: #777;
 }
 
-/* ===== 顶部导航 ===== */
+/* 顶部导航 */
 #header {
     background: var(--header-bg);
     border-bottom: 1px solid var(--border-color);
@@ -370,7 +370,6 @@ body.dark-mode #search-input:focus {
     display: block;
 }
 
-/* ===== 顶部图标按钮 ===== */
 .icon-btn {
     width: 34px;
     height: 34px;
@@ -399,7 +398,7 @@ body.dark-mode #search-input:focus {
     background: var(--selected-bg);
 }
 
-/* ===== 外观主题按钮 ===== */
+/* 主题按钮 */
 .s-theme-row {
     display: flex;
     gap: 12px;
@@ -427,7 +426,7 @@ body.dark-mode #search-input:focus {
     border-color: var(--theme-btn-active-border);
 }
 
-/* ===== 日历面板 ===== */
+/* 日历面板 */
 #calendar-overlay {
     position: fixed;
     top: 0;
@@ -544,7 +543,7 @@ body.dark-mode #calendar-panel .cal-days .cal-day.today:active {
     color: #e0e0e0;
 }
 
-/* ===== 月份选择器 ===== */
+/* 月份选择器 */
 #month-picker-overlay {
     position: fixed;
     top: 0;
@@ -646,7 +645,7 @@ body.dark-mode #calendar-panel .cal-days .cal-day.today:active {
     background: var(--btn-bg);
 }
 
-/* ===== 搜索下拉 ===== */
+/* 搜索下拉 */
 #search-dropdown {
     position: absolute;
     top: 100%;
@@ -755,7 +754,7 @@ body.dark-mode #calendar-panel .cal-days .cal-day.today:active {
     font-size: 14px;
 }
 
-/* ===== 消息列表 ===== */
+/* 消息列表 */
 #messages-container {
     flex: 1;
     overflow-y: auto;
@@ -783,14 +782,13 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     background: #555;
 }
 
-/* ===== 消息列表内部滚动容器 ===== */
 #scroll-viewport {
     position: relative;
     width: 100%;
     min-height: 100%;
 }
 
-/* ===== 消息条目 ===== */
+/* ===== 消息条目 - 动态高度，固定间距 ===== */
 .msg-item {
     position: absolute;
     left: 0;
@@ -798,7 +796,7 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     display: flex;
     flex-direction: column;
     overflow: visible;
-    padding-bottom: 8px;   /* 固定间距，所有消息统一 */
+    padding-bottom: 10px;   /* ★ 固定间距：所有消息底部间距统一 */
 }
 .msg-item:last-child {
     padding-bottom: 0;
@@ -907,7 +905,6 @@ body.dark-mode .msg-avatar {
     white-space: pre-wrap;
 }
 
-/* ===== 操作按钮 - 选中后显示 ===== */
 .msg-actions .msg-action-btn {
     width: 28px;
     height: 28px;
@@ -949,7 +946,7 @@ body.dark-mode .msg-avatar {
     justify-content: flex-start;
 }
 
-/* ===== 底部 ===== */
+/* 底部 */
 #footer {
     flex-shrink: 0;
     padding: 8px 16px;
@@ -967,7 +964,7 @@ body.dark-mode .msg-avatar {
     font-weight: 500;
 }
 
-/* ===== 上传区域 ===== */
+/* 上传区域 */
 #upload-zone {
     flex: 1;
     display: flex;
@@ -1006,7 +1003,7 @@ body.dark-mode .msg-avatar {
     transition: color 0.3s;
 }
 
-/* ===== 进度条 ===== */
+/* 进度条 */
 #progress-wrap {
     width: 100%;
     max-width: 400px;
@@ -1050,7 +1047,7 @@ body.dark-mode .msg-avatar {
     transition: color 0.3s;
 }
 
-/* ===== 设置面板 ===== */
+/* 设置面板 */
 #settings-overlay {
     position: fixed;
     top: 0;
@@ -1282,7 +1279,7 @@ body.dark-mode .s-save-btn:active {
     background: #3a7bd5;
 }
 
-/* ===== 确认弹窗 ===== */
+/* 确认弹窗 */
 #confirm-overlay {
     position: fixed;
     top: 0;
@@ -1357,7 +1354,7 @@ body.dark-mode .s-save-btn:active {
     background: #c0392b;
 }
 
-/* ===== Toast ===== */
+/* Toast */
 .custom-toast {
     position: fixed;
     bottom: 30px;
@@ -1382,7 +1379,7 @@ body.dark-mode .s-save-btn:active {
     transform: translateX(-50%) scale(1);
 }
 
-/* ===== 高亮 ===== */
+/* 高亮 */
 .msg-item.highlighted .msg-bubble {
     background-color: #ffeb3b !important;
     transition: background-color 0.5s ease;
@@ -1398,7 +1395,7 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
     background-color: #5c4a00 !important;
 }
 
-/* ===== 响应式 ===== */
+/* 响应式 */
 @media (max-width: 600px) {
     #header {
         padding: 8px 10px 6px 10px;
