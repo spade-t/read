@@ -44,6 +44,7 @@
 html,
 body {
     height: 100%;
+    height: 100dvh;
     font-family: var(--font-family);
     background: var(--bg-color);
     color: var(--text-color);
@@ -68,6 +69,7 @@ input[type="file"] {
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: 100dvh;
     max-width: var(--max-width);
     margin: 0 auto;
     background: var(--bg-color);
