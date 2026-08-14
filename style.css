@@ -788,31 +788,50 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     min-height: 100%;
 }
 
-/* ===== 消息条目 - 彻底解决间距统一、按钮重叠、气泡自适应 ===== */
+/* ===== 消息条目 最终修复版：统一间距、防重叠、气泡自适应 ===== */
 .msg-item {
     position: absolute;
     left: 0;
     right: 0;
     overflow: visible;
     padding: 0;
-    /* 【关键】每条消息总高度额外预留16px统一间距，包含按钮安全区 */
-    --gap: 16px;
+    /* 全局统一底部安全留白 16px，完全匹配 JS ITEM_BOTTOM_GAP=16 */
+    padding-bottom: 16px;
+}
+/* 最后一条消息同样保留完整间距，所有消息间距完全均等 */
+.msg-item:last-child {
+    padding-bottom: 16px;
 }
 
-/* 消息行：整行自适应，用户消息强制靠右 */
+/* 选中气泡蓝色外框 */
+.msg-item.selected .msg-bubble {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* 操作按钮：加大向下偏移，完全落在本条留白内，绝不压下一条 */
+.msg-actions {
+    display: none;
+    margin-top: 12px;
+    padding: 0 4px;
+    gap: 8px;
+}
+.msg-item.selected .msg-actions {
+    display: flex;
+}
+
+/* 消息行布局：用户消息强制整行靠右，解决短句不贴右侧 */
 .msg-row {
     display: flex;
     align-items: flex-start;
     gap: 8px;
     width: 100%;
-    padding-bottom: var(--gap); /* 统一间距写在行上，每条消息底部固定留白 */
+    padding: 0;
 }
-/* 我方消息：整行右对齐，解决短句不靠右 */
 .msg-row.user {
     flex-direction: row-reverse;
     justify-content: flex-end;
 }
-/* Bot消息：整行左对齐 */
 .msg-row.bot {
     justify-content: flex-start;
 }
@@ -831,7 +850,7 @@ body.dark-mode .msg-avatar {
     border-color: var(--bg-color);
 }
 
-/* 气泡容器：取消父级最大宽度限制，交给气泡自身控制 */
+/* 消息内容容器：取消父级宽度限制，交给气泡自身自适应 */
 .msg-body {
     display: flex;
     flex-direction: column;
@@ -863,7 +882,7 @@ body.dark-mode .msg-avatar {
     justify-content: flex-start;
 }
 
-/* 气泡本体：独立限制最大宽度，真正实现短句自适应收缩 */
+/* 气泡本体：width:fit-content 实现短句窄气泡，长句自动换行 */
 .msg-bubble {
     padding: 10px 14px;
     border-radius: var(--radius);
@@ -877,7 +896,7 @@ body.dark-mode .msg-avatar {
     color: var(--text-color);
     transition: background 0.3s, color 0.3s, box-shadow 0.3s;
     width: fit-content;
-    max-width: min(600px, 72vw); /* 最大宽度绑定气泡自身，短句自动缩窄 */
+    max-width: min(600px, 72vw);
 }
 .msg-row.user .msg-bubble {
     background: var(--bubble-user-bg);
@@ -893,64 +912,12 @@ body.dark-mode .msg-avatar {
     white-space: pre-wrap;
 }
 
-/* 操作按钮：相对气泡定位，向下偏移到统一留白区域，绝不侵入下一条消息 */
-.msg-actions {
-    display: none;
-    position: relative;
-    top: 10px; /* 向下偏移，落在padding-bottom留白内 */
-    padding: 0 4px;
-    gap: 8px;
-}
-.msg-item.selected .msg-actions {
-    display: flex;
-}
+/* 按钮布局对齐 */
 .msg-row.user .msg-actions {
     justify-content: flex-end;
 }
 .msg-row.bot .msg-actions {
     justify-content: flex-start;
-}
-
-/* 按钮样式保留不变 */
-.msg-actions .msg-action-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.2s, transform 0.15s;
-    padding: 0;
-    color: var(--text-secondary);
-}
-.msg-actions .msg-action-btn svg {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    stroke-width: 2;
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-.msg-actions .msg-action-btn:active {
-    transform: scale(0.85);
-}
-.msg-actions .msg-action-btn.copy-btn:hover {
-    background: var(--selected-bg);
-    color: var(--primary-color);
-}
-.msg-actions .msg-action-btn.delete-btn:hover {
-    background: var(--selected-bg);
-    color: var(--danger-color);
-}
-
-/* 选中气泡描边 */
-.msg-item.selected .msg-bubble {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
 }
 
 /* 复制/删除按钮样式 */
@@ -987,12 +954,6 @@ body.dark-mode .msg-avatar {
 .msg-actions .msg-action-btn.delete-btn:hover {
     background: var(--selected-bg);
     color: var(--danger-color);
-}
-.msg-row.user .msg-actions {
-    justify-content: flex-end;
-}
-.msg-row.bot .msg-actions {
-    justify-content: flex-start;
 }
 
 /* 底部 */
@@ -1474,14 +1435,14 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
         padding: 6px 6px 4px 6px;
     }
     .msg-row {
-        max-width: 92%;
+    max-width: 92%;
     }
     .msg-body {
-        max-width: 78vw;
+    max-width: 78vw;
     }
     .msg-bubble {
-        font-size: 15px;
-        padding: 8px 12px;
+    font-size: 15px;
+    padding: 8px 12px;
     }
     .msg-header {
         font-size: 12px;
@@ -1591,11 +1552,11 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
         height: 28px;
     }
     .msg-body {
-        max-width: 82vw;
+    max-width: 82vw;
     }
     .msg-bubble {
-        font-size: 14px;
-        padding: 6px 10px;
+    font-size: 14px;
+    padding: 6px 10px;
     }
     .msg-header .mname {
         font-size: 13px;
