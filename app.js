@@ -474,30 +474,30 @@
 
     // ===== 虚拟滚动 - 精准高度估算 =====
 
-    function estimateItemHeight(msg) {
-        const text = msg._text || '';
-        const charCount = text.length;
+   function estimateItemHeight(msg) {
+    const text = msg._text || '';
+    const charCount = text.length;
 
-        // 固定部分：头像(40px) + 名称行(22px) + 上下内边距
-        let baseHeight = 45;
+    // 固定基础高度：头像+名称+气泡内边距
+    let baseHeight = 45;
 
-        // 气泡高度：根据字符数精准估算
-        // 每行约20个中文字符，行高约20px，加上内边距
-        const lineWidth = 20;
-        const lineHeight = 20;
-        const lines = Math.max(1, Math.ceil(charCount / lineWidth));
-        const bubbleHeight = lines * lineHeight + 12;
+    // 气泡文字高度计算
+    const lineWidth = 20;
+    const lineHeight = 20;
+    const lines = Math.max(1, Math.ceil(charCount / lineWidth));
+    const bubbleHeight = lines * lineHeight + 12;
 
-        baseHeight += bubbleHeight;
+    baseHeight += bubbleHeight;
 
-        // 按钮区域（复制/删除图标）
-        baseHeight += 24;
+    // 选中状态额外增加按钮高度（10px偏移+按钮自身28px）
+    if(selectedIndex === allMessages.indexOf(msg)){
+        baseHeight += 38;
+    }
 
-        // 底部固定间距
-        baseHeight += ITEM_BOTTOM_GAP;
+    // 每条消息强制加上统一16px底部间距（和CSS --gap 完全对应）
+    baseHeight += ITEM_BOTTOM_GAP;
 
-        // 确保最小高度
-        return Math.max(95, baseHeight);
+    return Math.max(95, baseHeight);
     }
 
     function buildHeightCache() {
