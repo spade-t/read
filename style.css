@@ -1434,7 +1434,7 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
     #messages-container {
         padding: 6px 6px 4px 6px;
     }
-    .msg-row {
+   .msg-row {
     max-width: 92%;
     }
     .msg-body {
