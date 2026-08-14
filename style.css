@@ -789,99 +789,171 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
 }
 
 /* ===== 消息条目 最终修复版：统一间距、防重叠、气泡自适应 ===== */
-/* ========== 消息列表容器 ========== */
-#messages-container {
-    padding: 16px 12px;
-    overflow-y: auto;
-    flex: 1;
-}
-
-/* 每条消息外层容器，不管是谁发的，统一底部间距 */
 .msg-item {
-    padding-bottom: 12px !important; /* 和 JS ITEM_BOTTOM_GAP =12 严格对齐，所有消息间距完全统一 */
-    display: flex;
-    width: 100%;
+    position: absolute;
+    left: 0;
+    right: 0;
+    overflow: visible;
+    padding: 0;
+    /* 全局统一底部安全留白 16px，完全匹配 JS ITEM_BOTTOM_GAP=16 */
+    padding-bottom: 16px;
+}
+/* 最后一条消息同样保留完整间距，所有消息间距完全均等 */
+.msg-item:last-child {
+    padding-bottom: 16px;
 }
 
-/* Bot消息：居左 */
-.msg-bot {
+/* 选中气泡蓝色外框 */
+.msg-item.selected .msg-bubble {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* 操作按钮：加大向下偏移，完全落在本条留白内，绝不压下一条 */
+.msg-actions {
+    display: none;
+    margin-top: 12px;
+    padding: 0 4px;
+    gap: 8px;
+}
+.msg-item.selected .msg-actions {
+    display: flex;
+}
+
+/* 消息行布局：用户消息强制整行靠右，解决短句不贴右侧 */
+.msg-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    padding: 0;
+}
+.msg-row.user {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+}
+.msg-row.bot {
     justify-content: flex-start;
 }
-/* 我发的消息：强制居右！修复右消息左移空白bug */
-.msg-user {
-    justify-content: flex-end !important;
-}
 
-/* 头像区域 */
 .msg-avatar {
     width: var(--avatar-size);
     height: var(--avatar-size);
     border-radius: 50%;
     flex-shrink: 0;
+    object-fit: cover;
+    background: #ccc;
+    border: 1px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-.msg-bot .msg-avatar {
-    margin-right: 10px;
-}
-.msg-user .msg-avatar {
-    margin-left: 10px;
-    order: 2; /*头像跑到气泡右侧 */
-}
-
-/* 气泡主体包裹层 */
-.msg-bubble-wrap {
-    max-width: 68%; /*微信风格最大气泡宽度，不会占满屏幕 */
-    position: relative;
+body.dark-mode .msg-avatar {
+    border-color: var(--bg-color);
 }
 
-/* 气泡本体 */
+/* 消息内容容器：取消父级宽度限制，交给气泡自身自适应 */
+.msg-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 50px;
+}
+.msg-header {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
+    padding: 0 2px 3px 2px;
+    flex-wrap: wrap;
+}
+.msg-header .mname {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text-color);
+    transition: color 0.3s;
+}
+.msg-header .mtime {
+    color: var(--time-color);
+    font-size: 12px;
+    transition: color 0.3s;
+}
+.msg-row.user .msg-header {
+    justify-content: flex-end;
+}
+.msg-row.bot .msg-header {
+    justify-content: flex-start;
+}
+
+/* 气泡本体：width:fit-content 实现短句窄气泡，长句自动换行 */
 .msg-bubble {
     padding: 10px 14px;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    word-break: break‑word;
-    white-space: pre‑wrap;
-}
-
-/* bot气泡背景 */
-.msg-bot .msg-bubble {
+    word-break: break-word;
+    line-height: 1.7;
+    font-size: 16px;
+    position: relative;
     background: var(--bubble-bot-bg);
-    color: var(--text-color);
     border-top-left-radius: 4px;
+    color: var(--text-color);
+    transition: background 0.3s, color 0.3s, box-shadow 0.3s;
+    width: fit-content;
+    max-width: min(600px, 72vw);
 }
-/* 用户气泡（绿色） */
-.msg-user .msg-bubble {
+.msg-row.user .msg-bubble {
     background: var(--bubble-user-bg);
-    color: #111;
     border-top-right-radius: 4px;
+    border-top-left-radius: var(--radius);
+}
+.msg-row.bot .msg-bubble {
+    background: var(--bubble-bot-bg);
+    border-top-left-radius: 4px;
+    border-top-right-radius: var(--radius);
+}
+.msg-bubble .text-content {
+    white-space: pre-wrap;
 }
 
-/* 消息时间文本 */
-.msg-time {
-    font-size: 12px;
-    color: var(--time-color);
-    margin:4px 6px;
+/* 按钮布局对齐 */
+.msg-row.user .msg-actions {
+    justify-content: flex-end;
 }
-.msg-bot .msg-time {
-    text-align: left;
-}
-.msg-user .msg-time {
-    text-align: right;
+.msg-row.bot .msg-actions {
+    justify-content: flex-start;
 }
 
-/* 复制/删除操作按钮，悬浮在气泡右上角，防止和下一条消息重叠 */
-.msg-actions {
-    position: absolute;
-    right: -34px;
-    top:4px;
+/* 复制/删除按钮样式 */
+.msg-actions .msg-action-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    cursor: pointer;
     display: flex;
-    gap:4px;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.15s;
+    padding: 0;
+    color: var(--text-secondary);
 }
-.msg-actions button {
-    width:26px;
-    height:26px;
-    border:none;
-    border-radius:6px;
-    background:#ffffffdd;
+.msg-actions .msg-action-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.msg-actions .msg-action-btn:active {
+    transform: scale(0.85);
+}
+.msg-actions .msg-action-btn.copy-btn:hover {
+    background: var(--selected-bg);
+    color: var(--primary-color);
+}
+.msg-actions .msg-action-btn.delete-btn:hover {
+    background: var(--selected-bg);
+    color: var(--danger-color);
 }
 
 /* 底部 */
