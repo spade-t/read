@@ -754,6 +754,41 @@ body.dark-mode #calendar-panel .cal-days .cal-day.today:active {
     font-size: 14px;
 }
 
+/* 消息列表 */
+#messages-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 10px 4px 10px;
+    background: var(--bg-color);
+    position: relative;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    -webkit-overflow-scrolling: touch;
+    transition: background 0.3s;
+}
+#messages-container::-webkit-scrollbar {
+    width: 4px;
+}
+#messages-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+#messages-container::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 10px;
+}
+body.dark-mode #messages-container::-webkit-scrollbar-thumb {
+    background: #555;
+}
+
+#scroll-viewport {
+    position: relative;
+    width: 100%;
+    min-height: 100%;
+}
+
+/* ===== 消息条目 最终修复版：统一间距、防重叠、气泡自适应 ===== */
 /* ========== 消息列表容器 ========== */
 #messages-container {
     padding: 16px 12px;
@@ -848,6 +883,7 @@ body.dark-mode #calendar-panel .cal-days .cal-day.today:active {
     border-radius:6px;
     background:#ffffffdd;
 }
+
 /* 底部 */
 #footer {
     flex-shrink: 0;
