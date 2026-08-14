@@ -584,17 +584,20 @@
         body.appendChild(header);
         body.appendChild(bubble);
 
+        // 按正确顺序排列
         if (isUser) {
+            // 用户：body在前，checkbox和avatar在后
             row.appendChild(body);
             row.appendChild(checkbox);
+            row.appendChild(avatarImg);
         } else {
+            // Bot：checkbox在前，avatar在中间，body在后
             row.appendChild(checkbox);
+            row.appendChild(avatarImg);
             row.appendChild(body);
         }
 
-        row.appendChild(avatarImg);
         item.appendChild(row);
-
         return item;
     }
 
@@ -602,7 +605,6 @@
         const total = messages.length;
         if (total === 0) return [];
 
-        // 创建离屏容器
         const container = document.createElement('div');
         container.style.cssText = `
             position: fixed;
@@ -631,7 +633,6 @@
             container.innerHTML = '';
             container.appendChild(fragment);
 
-            // 强制回流
             await new Promise(r => requestAnimationFrame(r));
 
             for (let i = 0; i < items.length; i++) {
@@ -641,7 +642,6 @@
             const progress = Math.round((end / total) * 100);
             if (onProgress) onProgress(progress);
 
-            // 让出主线程
             await new Promise(r => setTimeout(r, 0));
         }
 
@@ -726,7 +726,7 @@
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
 
-        // 复选框（始终存在，多选模式时可见）
+        // 复选框 - 统一在最左边
         const checkbox = document.createElement('div');
         checkbox.className = 'msg-checkbox' + (isSelected ? ' checked' : '');
         checkbox.dataset.index = index;
@@ -767,18 +767,21 @@
         body.appendChild(header);
         body.appendChild(bubble);
 
+        // 按正确顺序排列
         if (isUser) {
+            // 用户：checkbox → body → avatar
+            row.appendChild(checkbox);
             row.appendChild(body);
-            row.appendChild(checkbox);
+            row.appendChild(avatarImg);
         } else {
+            // Bot：checkbox → avatar → body
             row.appendChild(checkbox);
+            row.appendChild(avatarImg);
             row.appendChild(body);
         }
 
-        row.appendChild(avatarImg);
         item.appendChild(row);
 
-        // 点击事件（仅多选模式）
         item.addEventListener('click', function(e) {
             if (!multiSelectMode) return;
             const idx = parseInt(this.dataset.index);
@@ -818,7 +821,6 @@
         }
         viewport.appendChild(fragment);
 
-        // 更新多选状态
         if (multiSelectMode) {
             messagesContainer.classList.add('multi-select-mode');
         } else {
@@ -928,7 +930,6 @@
     let longPressTarget = null;
 
     function setupLongPress() {
-        // 触摸设备长按
         messagesContainer.addEventListener('touchstart', function(e) {
             const item = e.target.closest('.msg-item');
             if (!item || multiSelectMode) return;
@@ -953,7 +954,6 @@
             longPressTarget = null;
         }, { passive: true });
 
-        // PC 右键
         messagesContainer.addEventListener('contextmenu', function(e) {
             if (multiSelectMode) return;
             const item = e.target.closest('.msg-item');
@@ -971,23 +971,23 @@
         const msg = allMessages[index];
         const rect = item.getBoundingClientRect();
 
-        // 设置菜单内容
-        const copyBtn = actionMenu.querySelector('[data-action="copy"]');
-        const deleteBtn = actionMenu.querySelector('[data-action="delete"]');
-        const multiBtn = actionMenu.querySelector('[data-action="multi-select"]');
+        // 设置菜单图标
+        const items = actionMenu.querySelectorAll('.action-item');
+        const icons = [
+            getCopyIcon(),
+            getDeleteIcon(),
+            getMultiSelectIcon()
+        ];
+        items.forEach((el, i) => {
+            el.querySelector('.action-icon').innerHTML = icons[i];
+        });
 
-        copyBtn.innerHTML = getCopyIcon() + '<span class="action-label">复制</span>';
-        deleteBtn.innerHTML = getDeleteIcon() + '<span class="action-label">删除</span>';
-        multiBtn.innerHTML = getMultiSelectIcon() + '<span class="action-label">多选</span>';
-
-        // 定位
-        const menuX = x || Math.min(rect.left + 20, window.innerWidth - 160);
+        const menuX = x || Math.min(rect.left + 20, window.innerWidth - 220);
         const menuY = y || Math.max(10, rect.top - 10);
-        actionMenu.style.left = Math.max(10, Math.min(menuX, window.innerWidth - 160)) + 'px';
-        actionMenu.style.top = Math.min(menuY, window.innerHeight - 140) + 'px';
+        actionMenu.style.left = Math.max(10, Math.min(menuX, window.innerWidth - 220)) + 'px';
+        actionMenu.style.top = Math.min(menuY, window.innerHeight - 120) + 'px';
         actionMenu.style.display = 'block';
 
-        // 绑定操作
         const handlers = {
             copy: function() {
                 actionMenu.style.display = 'none';
@@ -1000,7 +1000,7 @@
             },
             delete: function() {
                 actionMenu.style.display = 'none';
-                confirmAction('⚠️ 确认删除', '确定要删除这条消息吗？删除后不可恢复！').then((ok) => {
+                confirmAction('确定要删除这条消息吗？', '这是你们的回忆噢！').then((ok) => {
                     if (ok) deleteMessage(index);
                 }).catch(() => {});
             },
@@ -1020,9 +1020,9 @@
         };
 
         const clickHandler = function(e) {
-            const btn = e.target.closest('.action-item');
-            if (!btn) return;
-            const action = btn.dataset.action;
+            const itemEl = e.target.closest('.action-item');
+            if (!itemEl) return;
+            const action = itemEl.dataset.action;
             if (handlers[action]) handlers[action]();
         };
 
@@ -1064,7 +1064,6 @@
             selectedSet.add(index);
         }
         updateMultiSelectUI();
-        // 更新复选框状态
         const checkboxes = messagesContainer.querySelectorAll('.msg-checkbox');
         checkboxes.forEach(el => {
             const idx = parseInt(el.dataset.index);
@@ -1077,8 +1076,6 @@
     function updateMultiSelectUI() {
         const count = selectedSet.size;
         msCount.textContent = '已选 ' + count + ' 条';
-
-        // 更新复制/删除图标
         msCopy.innerHTML = getCopyIcon();
         msDelete.innerHTML = getDeleteIcon();
     }
@@ -1107,7 +1104,7 @@
             return;
         }
         const count = selectedSet.size;
-        confirmAction('⚠️ 确认删除', '确定要删除选中的 ' + count + ' 条消息吗？删除后不可恢复！').then(async (ok) => {
+        confirmAction('确定要删除选中的 ' + count + ' 条消息吗？', '这是你们的回忆噢！').then(async (ok) => {
             if (!ok) return;
             const indices = [...selectedSet].sort((a, b) => b - a);
             for (const idx of indices) {
@@ -1116,13 +1113,11 @@
                 allMessages.splice(idx, 1);
             }
             selectedSet.clear();
-            // 重建高度缓存
             const newHeights = [];
             for (let i = 0; i < allMessages.length; i++) {
-                newHeights[i] = 100; // 临时占位，后续重新测量
+                newHeights[i] = 100;
             }
             itemHeights = newHeights;
-            // 重新测量
             pstatus.textContent = '⏳ 重新测量...';
             const measured = await measureAllMessages(allMessages, (p) => {
                 pstatus.textContent = p + '%';
@@ -1147,7 +1142,6 @@
         try {
             if (msgId) await deleteMessageFromDB(msgId);
             allMessages.splice(index, 1);
-            // 重新测量
             const measured = await measureAllMessages(allMessages, (p) => {
                 pstatus.textContent = p + '%';
                 pdetail.textContent = '重新测量高度 ' + p + '%';
@@ -1528,7 +1522,7 @@
     function confirmAction(title, desc) {
         return new Promise((resolve) => {
             confirmTitle.textContent = title || '确认删除';
-            confirmDesc.textContent = desc || '确定要删除吗？删除后不可恢复！';
+            confirmDesc.textContent = desc || '确定要删除吗？';
             confirmOverlay.classList.add('open');
             pendingConfirm = resolve;
         });
@@ -1589,12 +1583,10 @@
             if (msgs && msgs.length > 0) {
                 allMessages = msgs.sort((a, b) => (a.create_time || '').localeCompare(b.create_time || ''));
 
-                // 尝试加载缓存的高度
                 let heights = await loadHeightsFromDB();
                 if (heights && heights.length === allMessages.length) {
                     itemHeights = heights;
                 } else {
-                    // 没有缓存或长度不匹配，重新测量
                     pstatus.textContent = '⏳ 测量高度...';
                     heights = await measureAllMessages(allMessages, (p) => {
                         pstatus.textContent = p + '%';
@@ -1697,7 +1689,6 @@
                     }
                     await saveSettingsToDB(settings);
 
-                    // 测量所有消息的高度
                     pstatus.textContent = '⏳ 测量高度...';
                     const heights = await measureAllMessages(allMessages, (p) => {
                         progressBar.style.width = p + '%';
@@ -1814,7 +1805,6 @@
         if (!wrap.contains(e.target)) {
             searchDropdown.classList.remove('show');
         }
-        // 点击外部关闭菜单
         if (actionMenu.style.display === 'block' && !actionMenu.contains(e.target)) {
             actionMenu.style.display = 'none';
         }
@@ -1883,7 +1873,7 @@
     sExportMd.addEventListener('click', exportMD);
 
     sClearData.addEventListener('click', function() {
-        confirmAction('⚠️ 清空所有数据', '确定要清空所有聊天记录和设置吗？此操作不可恢复！').then(async (ok) => {
+        confirmAction('确定要清空所有聊天记录和设置吗？', '此操作不可恢复！').then(async (ok) => {
             if (!ok) return;
             try {
                 await clearAllMessagesDB();
@@ -2008,7 +1998,6 @@
         settingsBtn.innerHTML = getSettingsIcon();
         calendarBtn.innerHTML = getCalendarIcon();
 
-        // 初始化多选栏图标
         msCopy.innerHTML = getCopyIcon();
         msDelete.innerHTML = getDeleteIcon();
 
