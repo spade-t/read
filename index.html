@@ -24,6 +24,16 @@
             </div>
         </header>
 
+        <!-- 多选操作栏 -->
+        <div id="multi-select-bar" style="display:none;">
+            <button id="ms-cancel">✕ 取消</button>
+            <span id="ms-count">已选 0 条</span>
+            <div class="ms-actions">
+                <button class="ms-action-btn" id="ms-copy" title="复制选中"></button>
+                <button class="ms-action-btn" id="ms-delete" title="删除选中"></button>
+            </div>
+        </div>
+
         <!-- 日历面板 -->
         <div id="calendar-overlay">
             <div id="calendar-panel">
@@ -65,6 +75,13 @@
         <footer id="footer" style="display:none;">
             <span class="fcount" id="msg-count">总消息: 0 条</span>
         </footer>
+    </div>
+
+    <!-- 操作菜单（长按/右键弹出） -->
+    <div id="action-menu" style="display:none;">
+        <button class="action-item" data-action="copy"></button>
+        <button class="action-item" data-action="delete"></button>
+        <button class="action-item" data-action="multi-select"></button>
     </div>
 
     <!-- 设置面板 -->
