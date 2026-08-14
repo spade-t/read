@@ -1970,6 +1970,11 @@
     messagesContainer.addEventListener('scroll', function() {
         if (!isDataLoaded || allMessages.length === 0 || itemHeights.length === 0) return;
 
+        // ★★★ 滚动时关闭操作菜单 ★★★
+        if (actionMenu.style.display === 'block') {
+            actionMenu.style.display = 'none';
+        }
+
         saveScrollPosition();
 
         if (scrollFrameId) {
