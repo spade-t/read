@@ -547,7 +547,7 @@
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
 
-        // 复选框（测量时占位）
+        // 复选框（测量时占位，不可见）
         const checkbox = document.createElement('div');
         checkbox.className = 'msg-checkbox';
         checkbox.style.visibility = 'visible';
@@ -584,15 +584,14 @@
         body.appendChild(header);
         body.appendChild(bubble);
 
-        // 按正确顺序排列
+        // 顺序：复选框统一在最左，然后按消息类型排列
+        row.appendChild(checkbox);
         if (isUser) {
-            // 用户：body在前，checkbox和avatar在后
+            // 用户：body → avatar（body在左，avatar在右）
             row.appendChild(body);
-            row.appendChild(checkbox);
             row.appendChild(avatarImg);
         } else {
-            // Bot：checkbox在前，avatar在中间，body在后
-            row.appendChild(checkbox);
+            // Bot：avatar → body（avatar在左，body在右）
             row.appendChild(avatarImg);
             row.appendChild(body);
         }
@@ -767,15 +766,14 @@
         body.appendChild(header);
         body.appendChild(bubble);
 
-        // 按正确顺序排列
+        // 顺序：复选框统一在最左
+        row.appendChild(checkbox);
         if (isUser) {
-            // 用户：checkbox → body → avatar
-            row.appendChild(checkbox);
+            // 用户：body在左，avatar在右
             row.appendChild(body);
             row.appendChild(avatarImg);
         } else {
-            // Bot：checkbox → avatar → body
-            row.appendChild(checkbox);
+            // Bot：avatar在左，body在右
             row.appendChild(avatarImg);
             row.appendChild(body);
         }
@@ -971,7 +969,6 @@
         const msg = allMessages[index];
         const rect = item.getBoundingClientRect();
 
-        // 设置菜单图标
         const items = actionMenu.querySelectorAll('.action-item');
         const icons = [
             getCopyIcon(),
