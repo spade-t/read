@@ -81,7 +81,7 @@
     let totalHeight = 0;
 
     // ===== 固定间距 =====
-    const ITEM_BOTTOM_GAP = 16; // CSS 中 .msg-item 的 padding-bottom
+    const ITEM_BOTTOM_GAP = 12; // 和css统一，每条消息底部统一间距12px
 
     // 搜索状态
     let searchMatchCache = [];
