@@ -79,9 +79,20 @@
 
     <!-- 操作菜单（长按/右键弹出） -->
     <div id="action-menu" style="display:none;">
-        <button class="action-item" data-action="copy"></button>
-        <button class="action-item" data-action="delete"></button>
-        <button class="action-item" data-action="multi-select"></button>
+        <div class="action-items">
+            <div class="action-item" data-action="copy">
+                <div class="action-icon"></div>
+                <div class="action-label">复制</div>
+            </div>
+            <div class="action-item" data-action="delete">
+                <div class="action-icon"></div>
+                <div class="action-label">删除</div>
+            </div>
+            <div class="action-item" data-action="multi-select">
+                <div class="action-icon"></div>
+                <div class="action-label">多选</div>
+            </div>
+        </div>
     </div>
 
     <!-- 设置面板 -->
@@ -174,7 +185,7 @@
         <div id="confirm-box">
             <div class="c-icon">💔</div>
             <div class="c-title" id="confirm-title">确认删除</div>
-            <div class="c-desc" id="confirm-desc">这是属于你们的回忆噢，删除后不可恢复！</div>
+            <div class="c-desc" id="confirm-desc">确定要删除吗？</div>
             <div class="c-actions">
                 <button class="c-cancel" id="confirm-cancel">取消</button>
                 <button class="c-confirm" id="confirm-ok">确定删除</button>
