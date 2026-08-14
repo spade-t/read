@@ -1097,33 +1097,42 @@
         confirmAction('确定要删除选中的 ' + count + ' 条消息吗？', '这是你们的回忆噢！').then(async (ok) => {
             if (!ok) return;
             const indices = [...selectedSet].sort((a, b) => b - a);
+            
+            // 收集ID
+            const idsToDelete = [];
             for (const idx of indices) {
                 const msg = allMessages[idx];
-                if (msg.message_id) await deleteMessageFromDB(msg.message_id);
+                if (msg.message_id) idsToDelete.push(msg.message_id);
+            }
+            
+            // 批量删除数据库
+            for (const id of idsToDelete) {
+                await deleteMessageFromDB(id);
+            }
+            
+            // 从数组中移除（从后往前）
+            for (const idx of indices) {
                 allMessages.splice(idx, 1);
+                itemHeights.splice(idx, 1);
             }
-            selectedSet.clear();
-            const newHeights = [];
+            
+            // 重新计算偏移
+            itemOffsets = new Array(allMessages.length);
+            totalHeight = 0;
             for (let i = 0; i < allMessages.length; i++) {
-                newHeights[i] = 100;
+                itemOffsets[i] = totalHeight;
+                totalHeight += itemHeights[i];
             }
-            itemHeights = newHeights;
-            pstatus.textContent = '⏳ 重新测量...';
-            const measured = await measureAllMessages(allMessages, (p) => {
-                pstatus.textContent = p + '%';
-                pdetail.textContent = '重新测量高度 ' + p + '%';
-            });
-            await saveHeightsToDB(measured);
-            buildHeightCache(measured);
+            
+            await saveHeightsToDB(itemHeights);
+            selectedSet.clear();
             exitMultiSelect();
             fullRebuild();
             showToast('🗑️ 已删除 ' + count + ' 条消息');
-            pstatus.textContent = '✅ 完成';
-            pdetail.textContent = '已删除 ' + count + ' 条消息';
         }).catch(() => {});
     }
 
-    // ===== 删除单条 =====
+    // ===== 删除单条（优化版 - 不重新测量） =====
 
     async function deleteMessage(index) {
         if (index < 0 || index >= allMessages.length) return;
@@ -1131,17 +1140,27 @@
         const msgId = msg.message_id;
         try {
             if (msgId) await deleteMessageFromDB(msgId);
+            
+            // 从数组中移除
             allMessages.splice(index, 1);
-            const measured = await measureAllMessages(allMessages, (p) => {
-                pstatus.textContent = p + '%';
-                pdetail.textContent = '重新测量高度 ' + p + '%';
-            });
-            await saveHeightsToDB(measured);
-            buildHeightCache(measured);
+            itemHeights.splice(index, 1);
+            
+            // 重新计算偏移
+            itemOffsets = new Array(allMessages.length);
+            totalHeight = 0;
+            for (let i = 0; i < allMessages.length; i++) {
+                itemOffsets[i] = totalHeight;
+                totalHeight += itemHeights[i];
+            }
+            
+            // 保存高度缓存
+            await saveHeightsToDB(itemHeights);
+            
             fullRebuild();
             showToast('🗑️ 已删除');
         } catch (err) {
             showToast('❌ 删除失败');
+            console.error(err);
         }
     }
 
