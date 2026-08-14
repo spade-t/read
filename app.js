@@ -50,11 +50,19 @@
 
     const themeBtns = document.querySelectorAll('.theme-btn');
 
+    const actionMenu = $('action-menu');
+    const msBar = $('multi-select-bar');
+    const msCancel = $('ms-cancel');
+    const msCount = $('ms-count');
+    const msCopy = $('ms-copy');
+    const msDelete = $('ms-delete');
+
     // ===== 全局状态 =====
     const DB_NAME = 'ChatViewerDB';
     const STORE_NAME = 'messages';
     const SETTINGS_STORE = 'settings';
-    const DB_VERSION = 2;
+    const HEIGHTS_STORE = 'heights';
+    const DB_VERSION = 3;
 
     let allMessages = [];
     let isDataLoaded = false;
@@ -80,7 +88,7 @@
     let itemOffsets = [];
     let totalHeight = 0;
 
-    // ===== 固定间距 - 与CSS统一 =====
+    // 固定间距
     const ITEM_BOTTOM_GAP = 16;
 
     // 搜索状态
@@ -88,8 +96,9 @@
     let searchDisplayCount = 50;
     const SEARCH_BATCH_SIZE = 50;
 
-    // 选中状态
-    let selectedIndex = -1;
+    // 多选状态
+    let multiSelectMode = false;
+    let selectedSet = new Set();
 
     // 日历状态
     let calendarYear = 2026;
@@ -196,6 +205,14 @@
 
     function getDeleteIcon() {
         return `<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
+    }
+
+    function getCheckIcon() {
+        return `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
+    }
+
+    function getMultiSelectIcon() {
+        return `<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="9 12 11 14 15 10"/></svg>`;
     }
 
     function getSettingsIcon() {
@@ -368,6 +385,9 @@
                 if (!d.objectStoreNames.contains(SETTINGS_STORE)) {
                     d.createObjectStore(SETTINGS_STORE, { keyPath: 'key' });
                 }
+                if (!d.objectStoreNames.contains(HEIGHTS_STORE)) {
+                    d.createObjectStore(HEIGHTS_STORE, { keyPath: 'id' });
+                }
             };
             req.onsuccess = (e) => resolve(e.target.result);
             req.onerror = (e) => reject(e.target.error);
@@ -423,6 +443,39 @@
         });
     }
 
+    async function saveHeightsToDB(heights) {
+        const db = await getDB();
+        const tx = db.transaction(HEIGHTS_STORE, 'readwrite');
+        const store = tx.objectStore(HEIGHTS_STORE);
+        store.put({ id: 'heights', data: heights });
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    async function loadHeightsFromDB() {
+        const db = await getDB();
+        const tx = db.transaction(HEIGHTS_STORE, 'readonly');
+        const store = tx.objectStore(HEIGHTS_STORE);
+        return new Promise((resolve, reject) => {
+            const req = store.get('heights');
+            req.onsuccess = () => resolve(req.result?.data || null);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    async function clearHeightsDB() {
+        const db = await getDB();
+        const tx = db.transaction(HEIGHTS_STORE, 'readwrite');
+        const store = tx.objectStore(HEIGHTS_STORE);
+        store.delete('heights');
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
     async function saveSettingsToDB(settings) {
         const db = await getDB();
         const tx = db.transaction(SETTINGS_STORE, 'readwrite');
@@ -472,41 +525,141 @@
         });
     }
 
-    // ===== 虚拟滚动 - 精准高度估算 =====
+    // ===== 高度测量 =====
 
-    function estimateItemHeight(msg) {
-        const text = msg._text || '';
-        const charCount = text.length;
+    function createMeasureElement(msg, index, containerWidth) {
+        const isUser = msg._userType === 'user';
+        let displayName;
+        if (isUser) {
+            displayName = settings.userName || '我';
+        } else {
+            displayName = settings.botName && settings.botName !== 'Bot' ? settings.botName : (msg._botName || 'Bot');
+        }
+        const avatar = isUser ? settings.userAvatar : settings.botAvatar;
+        const time = formatBeijingTime(msg.create_time);
 
-        let baseHeight = 45;
+        const item = document.createElement('div');
+        item.className = 'msg-item';
+        item.style.position = 'relative';
+        item.style.height = 'auto';
+        item.style.paddingBottom = ITEM_BOTTOM_GAP + 'px';
 
-        const lineWidth = 20;
-        const lineHeight = 20;
-        const lines = Math.max(1, Math.ceil(charCount / lineWidth));
-        const bubbleHeight = lines * lineHeight + 12;
+        const row = document.createElement('div');
+        row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
 
-        baseHeight += bubbleHeight;
+        // 复选框（测量时占位）
+        const checkbox = document.createElement('div');
+        checkbox.className = 'msg-checkbox';
+        checkbox.style.visibility = 'visible';
+        checkbox.style.opacity = '0';
+        checkbox.style.pointerEvents = 'none';
 
-        if (selectedIndex === allMessages.indexOf(msg)) {
-            baseHeight += 38;
+        const avatarImg = document.createElement('img');
+        avatarImg.className = 'msg-avatar';
+        avatarImg.src = avatar || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"%3E%3Ccircle cx="20" cy="20" r="20" fill="%23ccc"/%3E%3Ctext x="20" y="26" font-size="18" text-anchor="middle" fill="%23999"%3E' +
+            (isUser ? '我' : 'B') + '%3C/text%3E%3C/svg%3E';
+        avatarImg.alt = displayName;
+
+        const body = document.createElement('div');
+        body.className = 'msg-body';
+
+        const header = document.createElement('div');
+        header.className = 'msg-header';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'mname';
+        nameSpan.textContent = displayName;
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'mtime';
+        timeSpan.textContent = '(' + time + ')';
+        header.appendChild(nameSpan);
+        header.appendChild(timeSpan);
+
+        const bubble = document.createElement('div');
+        bubble.className = 'msg-bubble';
+        const content = document.createElement('div');
+        content.className = 'text-content';
+        content.textContent = msg._text || '[空消息]';
+        bubble.appendChild(content);
+
+        body.appendChild(header);
+        body.appendChild(bubble);
+
+        if (isUser) {
+            row.appendChild(body);
+            row.appendChild(checkbox);
+        } else {
+            row.appendChild(checkbox);
+            row.appendChild(body);
         }
 
-        baseHeight += ITEM_BOTTOM_GAP;
+        row.appendChild(avatarImg);
+        item.appendChild(row);
 
-        return Math.max(95, baseHeight);
+        return item;
     }
 
-    function buildHeightCache() {
+    async function measureAllMessages(messages, onProgress) {
+        const total = messages.length;
+        if (total === 0) return [];
+
+        // 创建离屏容器
+        const container = document.createElement('div');
+        container.style.cssText = `
+            position: fixed;
+            left: -9999px;
+            top: 0;
+            width: ${messagesContainer.clientWidth || 600}px;
+            visibility: hidden;
+            pointer-events: none;
+        `;
+        document.body.appendChild(container);
+
+        const heights = [];
+        const batchSize = 500;
+
+        for (let start = 0; start < total; start += batchSize) {
+            const end = Math.min(start + batchSize, total);
+            const fragment = document.createDocumentFragment();
+            const items = [];
+
+            for (let i = start; i < end; i++) {
+                const el = createMeasureElement(messages[i], i);
+                fragment.appendChild(el);
+                items.push(el);
+            }
+
+            container.innerHTML = '';
+            container.appendChild(fragment);
+
+            // 强制回流
+            await new Promise(r => requestAnimationFrame(r));
+
+            for (let i = 0; i < items.length; i++) {
+                heights[start + i] = items[i].offsetHeight;
+            }
+
+            const progress = Math.round((end / total) * 100);
+            if (onProgress) onProgress(progress);
+
+            // 让出主线程
+            await new Promise(r => setTimeout(r, 0));
+        }
+
+        document.body.removeChild(container);
+        return heights;
+    }
+
+    // ===== 虚拟滚动 =====
+
+    function buildHeightCache(heights) {
         const count = allMessages.length;
-        itemHeights = new Array(count);
+        itemHeights = heights;
         itemOffsets = new Array(count);
         totalHeight = 0;
 
         for (let i = 0; i < count; i++) {
-            const h = estimateItemHeight(allMessages[i]);
-            itemHeights[i] = h;
             itemOffsets[i] = totalHeight;
-            totalHeight += h;
+            totalHeight += itemHeights[i] || 100;
         }
     }
 
@@ -559,8 +712,10 @@
         const avatar = isUser ? settings.userAvatar : settings.botAvatar;
         const time = formatBeijingTime(msg.create_time);
 
+        const isSelected = selectedSet.has(index);
+
         const item = document.createElement('div');
-        item.className = 'msg-item' + (selectedIndex === index ? ' selected' : '');
+        item.className = 'msg-item';
         item.dataset.index = index;
         item.style.position = 'absolute';
         item.style.left = '0';
@@ -570,6 +725,16 @@
 
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
+
+        // 复选框（始终存在，多选模式时可见）
+        const checkbox = document.createElement('div');
+        checkbox.className = 'msg-checkbox' + (isSelected ? ' checked' : '');
+        checkbox.dataset.index = index;
+        checkbox.innerHTML = getCheckIcon();
+        if (!multiSelectMode) {
+            checkbox.style.visibility = 'hidden';
+            checkbox.style.opacity = '0';
+        }
 
         const avatarImg = document.createElement('img');
         avatarImg.className = 'msg-avatar';
@@ -599,44 +764,26 @@
         content.textContent = msg._text || '[空消息]';
         bubble.appendChild(content);
 
-        const actions = document.createElement('div');
-        actions.className = 'msg-actions';
-
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'msg-action-btn copy-btn';
-        copyBtn.innerHTML = getCopyIcon();
-        copyBtn.title = '复制';
-        copyBtn.dataset.action = 'copy';
-        copyBtn.dataset.index = index;
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'msg-action-btn delete-btn';
-        deleteBtn.innerHTML = getDeleteIcon();
-        deleteBtn.title = '删除';
-        deleteBtn.dataset.action = 'delete';
-        deleteBtn.dataset.index = index;
-
-        actions.appendChild(copyBtn);
-        actions.appendChild(deleteBtn);
-
         body.appendChild(header);
         body.appendChild(bubble);
-        body.appendChild(actions);
+
+        if (isUser) {
+            row.appendChild(body);
+            row.appendChild(checkbox);
+        } else {
+            row.appendChild(checkbox);
+            row.appendChild(body);
+        }
 
         row.appendChild(avatarImg);
-        row.appendChild(body);
         item.appendChild(row);
 
+        // 点击事件（仅多选模式）
         item.addEventListener('click', function(e) {
-            if (e.target.closest('.msg-action-btn')) return;
+            if (!multiSelectMode) return;
             const idx = parseInt(this.dataset.index);
             if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
-                if (selectedIndex === idx) {
-                    selectedIndex = -1;
-                } else {
-                    selectedIndex = idx;
-                }
-                fullRebuild();
+                toggleSelect(idx);
             }
         });
 
@@ -644,11 +791,10 @@
     }
 
     function fullRebuild() {
-        buildHeightCache();
         const viewport = buildViewport();
 
         const total = allMessages.length;
-        if (total === 0) {
+        if (total === 0 || itemHeights.length === 0) {
             viewport.innerHTML =
                 '<div style="text-align:center;padding:60px 20px;color:#999;font-size:16px;position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);">暂无消息</div>';
             viewport.style.height = '100%';
@@ -672,11 +818,18 @@
         }
         viewport.appendChild(fragment);
 
+        // 更新多选状态
+        if (multiSelectMode) {
+            messagesContainer.classList.add('multi-select-mode');
+        } else {
+            messagesContainer.classList.remove('multi-select-mode');
+        }
+
         updateFooter();
     }
 
     function updateViewport() {
-        if (!scrollViewport || allMessages.length === 0) return;
+        if (!scrollViewport || allMessages.length === 0 || itemHeights.length === 0) return;
 
         const containerHeight = messagesContainer.clientHeight || 600;
         const scrollTop = messagesContainer.scrollTop || 0;
@@ -746,7 +899,7 @@
     }
 
     function jumpToMessage(index) {
-        if (index < 0 || index >= allMessages.length) return;
+        if (index < 0 || index >= allMessages.length || itemOffsets.length === 0) return;
 
         const targetOffset = itemOffsets[index];
         const containerHeight = messagesContainer.clientHeight;
@@ -769,45 +922,224 @@
         }, 400);
     }
 
-    // ===== 消息事件委托 =====
-    function setupMessageEvents() {
-        messagesContainer.addEventListener('click', function(e) {
-            const btn = e.target.closest('.msg-action-btn');
-            if (btn) {
-                e.stopPropagation();
-                const action = btn.dataset.action;
-                const index = parseInt(btn.dataset.index);
-                if (isNaN(index) || index < 0 || index >= allMessages.length) return;
+    // ===== 长按菜单 =====
 
-                const msg = allMessages[index];
+    let longPressTimer = null;
+    let longPressTarget = null;
 
-                if (action === 'copy') {
-                    const text = msg._text || '';
-                    if (navigator.clipboard) {
-                        navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
-                    } else {
-                        fallbackCopy(text);
-                    }
-                } else if (action === 'delete') {
-                    confirmAction().then((ok) => {
-                        if (ok) {
-                            deleteMessage(index);
-                        }
-                    }).catch(() => {});
+    function setupLongPress() {
+        // 触摸设备长按
+        messagesContainer.addEventListener('touchstart', function(e) {
+            const item = e.target.closest('.msg-item');
+            if (!item || multiSelectMode) return;
+            longPressTarget = item;
+            longPressTimer = setTimeout(() => {
+                const idx = parseInt(item.dataset.index);
+                if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
+                    showActionMenu(item, idx);
+                    if (navigator.vibrate) navigator.vibrate(10);
                 }
-                return;
-            }
+                longPressTarget = null;
+            }, 350);
+        }, { passive: true });
 
-            if (e.target === messagesContainer || e.target.id === 'scroll-viewport' || e.target === document.body) {
-                if (selectedIndex !== -1) {
-                    selectedIndex = -1;
-                    fullRebuild();
+        messagesContainer.addEventListener('touchmove', function(e) {
+            clearTimeout(longPressTimer);
+            longPressTarget = null;
+        }, { passive: true });
+
+        messagesContainer.addEventListener('touchend', function(e) {
+            clearTimeout(longPressTimer);
+            longPressTarget = null;
+        }, { passive: true });
+
+        // PC 右键
+        messagesContainer.addEventListener('contextmenu', function(e) {
+            if (multiSelectMode) return;
+            const item = e.target.closest('.msg-item');
+            if (item) {
+                e.preventDefault();
+                const idx = parseInt(item.dataset.index);
+                if (!isNaN(idx) && idx >= 0 && idx < allMessages.length) {
+                    showActionMenu(item, idx, e.clientX, e.clientY);
                 }
             }
-        }, true);
+        });
     }
 
-    // ===== 删除消息 =====
+    function showActionMenu(item, index, x, y) {
+        const msg = allMessages[index];
+        const rect = item.getBoundingClientRect();
+
+        // 设置菜单内容
+        const copyBtn = actionMenu.querySelector('[data-action="copy"]');
+        const deleteBtn = actionMenu.querySelector('[data-action="delete"]');
+        const multiBtn = actionMenu.querySelector('[data-action="multi-select"]');
+
+        copyBtn.innerHTML = getCopyIcon() + '<span class="action-label">复制</span>';
+        deleteBtn.innerHTML = getDeleteIcon() + '<span class="action-label">删除</span>';
+        multiBtn.innerHTML = getMultiSelectIcon() + '<span class="action-label">多选</span>';
+
+        // 定位
+        const menuX = x || Math.min(rect.left + 20, window.innerWidth - 160);
+        const menuY = y || Math.max(10, rect.top - 10);
+        actionMenu.style.left = Math.max(10, Math.min(menuX, window.innerWidth - 160)) + 'px';
+        actionMenu.style.top = Math.min(menuY, window.innerHeight - 140) + 'px';
+        actionMenu.style.display = 'block';
+
+        // 绑定操作
+        const handlers = {
+            copy: function() {
+                actionMenu.style.display = 'none';
+                const text = msg._text || '';
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制'));
+                } else {
+                    fallbackCopy(text);
+                }
+            },
+            delete: function() {
+                actionMenu.style.display = 'none';
+                confirmAction('⚠️ 确认删除', '确定要删除这条消息吗？删除后不可恢复！').then((ok) => {
+                    if (ok) deleteMessage(index);
+                }).catch(() => {});
+            },
+            'multi-select': function() {
+                actionMenu.style.display = 'none';
+                enterMultiSelect();
+                selectedSet.add(index);
+                updateMultiSelectUI();
+                fullRebuild();
+            }
+        };
+
+        const cleanup = function() {
+            actionMenu.style.display = 'none';
+            actionMenu.removeEventListener('click', clickHandler);
+            document.removeEventListener('click', outsideHandler);
+        };
+
+        const clickHandler = function(e) {
+            const btn = e.target.closest('.action-item');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            if (handlers[action]) handlers[action]();
+        };
+
+        const outsideHandler = function(e) {
+            if (!actionMenu.contains(e.target)) {
+                cleanup();
+            }
+        };
+
+        actionMenu.addEventListener('click', clickHandler);
+        setTimeout(() => {
+            document.addEventListener('click', outsideHandler);
+        }, 10);
+    }
+
+    // ===== 多选功能 =====
+
+    function enterMultiSelect() {
+        multiSelectMode = true;
+        selectedSet.clear();
+        msBar.style.display = 'flex';
+        messagesContainer.classList.add('multi-select-mode');
+        updateMultiSelectUI();
+        fullRebuild();
+    }
+
+    function exitMultiSelect() {
+        multiSelectMode = false;
+        selectedSet.clear();
+        msBar.style.display = 'none';
+        messagesContainer.classList.remove('multi-select-mode');
+        fullRebuild();
+    }
+
+    function toggleSelect(index) {
+        if (selectedSet.has(index)) {
+            selectedSet.delete(index);
+        } else {
+            selectedSet.add(index);
+        }
+        updateMultiSelectUI();
+        // 更新复选框状态
+        const checkboxes = messagesContainer.querySelectorAll('.msg-checkbox');
+        checkboxes.forEach(el => {
+            const idx = parseInt(el.dataset.index);
+            if (!isNaN(idx)) {
+                el.classList.toggle('checked', selectedSet.has(idx));
+            }
+        });
+    }
+
+    function updateMultiSelectUI() {
+        const count = selectedSet.size;
+        msCount.textContent = '已选 ' + count + ' 条';
+
+        // 更新复制/删除图标
+        msCopy.innerHTML = getCopyIcon();
+        msDelete.innerHTML = getDeleteIcon();
+    }
+
+    async function batchCopy() {
+        if (selectedSet.size === 0) {
+            showToast('⚠️ 请先选择消息');
+            return;
+        }
+        const indices = [...selectedSet].sort((a, b) => a - b);
+        const texts = indices.map(i => allMessages[i]._text || '').join('\n---\n');
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(texts).then(() => {
+                showToast('✅ 已复制 ' + indices.length + ' 条');
+                exitMultiSelect();
+            });
+        } else {
+            fallbackCopy(texts);
+            exitMultiSelect();
+        }
+    }
+
+    async function batchDelete() {
+        if (selectedSet.size === 0) {
+            showToast('⚠️ 请先选择消息');
+            return;
+        }
+        const count = selectedSet.size;
+        confirmAction('⚠️ 确认删除', '确定要删除选中的 ' + count + ' 条消息吗？删除后不可恢复！').then(async (ok) => {
+            if (!ok) return;
+            const indices = [...selectedSet].sort((a, b) => b - a);
+            for (const idx of indices) {
+                const msg = allMessages[idx];
+                if (msg.message_id) await deleteMessageFromDB(msg.message_id);
+                allMessages.splice(idx, 1);
+            }
+            selectedSet.clear();
+            // 重建高度缓存
+            const newHeights = [];
+            for (let i = 0; i < allMessages.length; i++) {
+                newHeights[i] = 100; // 临时占位，后续重新测量
+            }
+            itemHeights = newHeights;
+            // 重新测量
+            pstatus.textContent = '⏳ 重新测量...';
+            const measured = await measureAllMessages(allMessages, (p) => {
+                pstatus.textContent = p + '%';
+                pdetail.textContent = '重新测量高度 ' + p + '%';
+            });
+            await saveHeightsToDB(measured);
+            buildHeightCache(measured);
+            exitMultiSelect();
+            fullRebuild();
+            showToast('🗑️ 已删除 ' + count + ' 条消息');
+            pstatus.textContent = '✅ 完成';
+            pdetail.textContent = '已删除 ' + count + ' 条消息';
+        }).catch(() => {});
+    }
+
+    // ===== 删除单条 =====
+
     async function deleteMessage(index) {
         if (index < 0 || index >= allMessages.length) return;
         const msg = allMessages[index];
@@ -815,8 +1147,13 @@
         try {
             if (msgId) await deleteMessageFromDB(msgId);
             allMessages.splice(index, 1);
-            if (selectedIndex === index) selectedIndex = -1;
-            else if (selectedIndex > index) selectedIndex--;
+            // 重新测量
+            const measured = await measureAllMessages(allMessages, (p) => {
+                pstatus.textContent = p + '%';
+                pdetail.textContent = '重新测量高度 ' + p + '%';
+            });
+            await saveHeightsToDB(measured);
+            buildHeightCache(measured);
             fullRebuild();
             showToast('🗑️ 已删除');
         } catch (err) {
@@ -1188,8 +1525,10 @@
     }
 
     // ===== 确认弹窗 =====
-    function confirmAction() {
+    function confirmAction(title, desc) {
         return new Promise((resolve) => {
+            confirmTitle.textContent = title || '确认删除';
+            confirmDesc.textContent = desc || '确定要删除吗？删除后不可恢复！';
             confirmOverlay.classList.add('open');
             pendingConfirm = resolve;
         });
@@ -1249,6 +1588,29 @@
             const msgs = await loadAllMessagesFromDB();
             if (msgs && msgs.length > 0) {
                 allMessages = msgs.sort((a, b) => (a.create_time || '').localeCompare(b.create_time || ''));
+
+                // 尝试加载缓存的高度
+                let heights = await loadHeightsFromDB();
+                if (heights && heights.length === allMessages.length) {
+                    itemHeights = heights;
+                } else {
+                    // 没有缓存或长度不匹配，重新测量
+                    pstatus.textContent = '⏳ 测量高度...';
+                    heights = await measureAllMessages(allMessages, (p) => {
+                        pstatus.textContent = p + '%';
+                        pdetail.textContent = '测量高度 ' + p + '%';
+                    });
+                    await saveHeightsToDB(heights);
+                    itemHeights = heights;
+                    pstatus.textContent = '✅ 完成';
+                    pdetail.textContent = '已加载 ' + allMessages.length.toLocaleString() + ' 条消息';
+                    setTimeout(() => {
+                        pstatus.textContent = '';
+                        pdetail.textContent = '';
+                    }, 1500);
+                }
+
+                buildHeightCache(itemHeights);
                 isDataLoaded = true;
                 showMessagesView();
                 buildViewport();
@@ -1261,6 +1623,7 @@
             }
             return false;
         } catch (err) {
+            console.error('加载数据失败:', err);
             return false;
         }
     }
@@ -1290,6 +1653,7 @@
         if (scrollViewport) {
             scrollViewport.innerHTML = '';
         }
+        exitMultiSelect();
     }
 
     // ===== 上传处理 =====
@@ -1332,6 +1696,19 @@
                         await saveMessagesToDB(allMessages.slice(i, i + 5000));
                     }
                     await saveSettingsToDB(settings);
+
+                    // 测量所有消息的高度
+                    pstatus.textContent = '⏳ 测量高度...';
+                    const heights = await measureAllMessages(allMessages, (p) => {
+                        progressBar.style.width = p + '%';
+                        pstatus.textContent = p + '%';
+                        pdetail.textContent = '测量高度 ' + p + '%';
+                    });
+
+                    await saveHeightsToDB(heights);
+                    itemHeights = heights;
+                    buildHeightCache(heights);
+
                     isDataLoaded = true;
                     showMessagesView();
                     applySettings();
@@ -1346,6 +1723,7 @@
                     }, 100);
                 } catch (err) {
                     showToast('❌ 保存失败');
+                    console.error(err);
                 }
             },
             (err) => {
@@ -1436,6 +1814,10 @@
         if (!wrap.contains(e.target)) {
             searchDropdown.classList.remove('show');
         }
+        // 点击外部关闭菜单
+        if (actionMenu.style.display === 'block' && !actionMenu.contains(e.target)) {
+            actionMenu.style.display = 'none';
+        }
     });
 
     settingsBtn.addEventListener('click', openSettings);
@@ -1501,14 +1883,11 @@
     sExportMd.addEventListener('click', exportMD);
 
     sClearData.addEventListener('click', function() {
-        confirmOverlay.classList.add('open');
-        confirmTitle.textContent = '⚠️ 清空所有数据';
-        confirmDesc.textContent = '确定要清空所有聊天记录和设置吗？此操作不可恢复！';
-        const okHandler = async function() {
-            confirmOverlay.classList.remove('open');
-            confirmOk.removeEventListener('click', okHandler);
+        confirmAction('⚠️ 清空所有数据', '确定要清空所有聊天记录和设置吗？此操作不可恢复！').then(async (ok) => {
+            if (!ok) return;
             try {
                 await clearAllMessagesDB();
+                await clearHeightsDB();
                 const db = await getDB();
                 const tx = db.transaction(SETTINGS_STORE, 'readwrite');
                 const store = tx.objectStore(SETTINGS_STORE);
@@ -1520,24 +1899,27 @@
                     tx.onerror = () => reject(tx.error);
                 });
                 allMessages = [];
+                itemHeights = [];
+                itemOffsets = [];
+                totalHeight = 0;
                 isDataLoaded = false;
                 settings = { userName: '我', botName: 'Bot', userAvatar: '', botAvatar: '', bgImage: '', darkMode: false };
                 applySettings();
                 showUploadView();
+                exitMultiSelect();
                 showToast('🗑️ 已清空所有数据');
                 localStorage.removeItem('chat_scroll_top');
             } catch (err) {
                 showToast('❌ 清空失败');
+                console.error(err);
             }
-        };
-        confirmOk.addEventListener('click', okHandler);
-        const cancelHandler = function() {
-            confirmOverlay.classList.remove('open');
-            confirmOk.removeEventListener('click', okHandler);
-            confirmCancel.removeEventListener('click', cancelHandler);
-        };
-        confirmCancel.addEventListener('click', cancelHandler);
+        }).catch(() => {});
     });
+
+    // ===== 多选事件 =====
+    msCancel.addEventListener('click', exitMultiSelect);
+    msCopy.addEventListener('click', batchCopy);
+    msDelete.addEventListener('click', batchDelete);
 
     // ===== 日历事件 =====
     calendarBtn.innerHTML = getCalendarIcon();
@@ -1587,7 +1969,7 @@
 
     // ===== 滚动事件 =====
     messagesContainer.addEventListener('scroll', function() {
-        if (!isDataLoaded || allMessages.length === 0) return;
+        if (!isDataLoaded || allMessages.length === 0 || itemHeights.length === 0) return;
 
         saveScrollPosition();
 
@@ -1606,7 +1988,7 @@
     window.addEventListener('resize', function() {
         if (resizeTimeout) clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
-            if (isDataLoaded && allMessages.length > 0) {
+            if (isDataLoaded && allMessages.length > 0 && itemHeights.length > 0) {
                 fullRebuild();
             }
         }, 300);
@@ -1615,15 +1997,20 @@
     // ===== 页面关闭保存 =====
     window.addEventListener('beforeunload', function() {
         saveScrollPosition();
+        if (multiSelectMode) exitMultiSelect();
     });
 
     // ===== 初始化 =====
     async function init() {
         await loadSettings();
-        setupMessageEvents();
+        setupLongPress();
 
         settingsBtn.innerHTML = getSettingsIcon();
         calendarBtn.innerHTML = getCalendarIcon();
+
+        // 初始化多选栏图标
+        msCopy.innerHTML = getCopyIcon();
+        msDelete.innerHTML = getDeleteIcon();
 
         const isDark = settings.darkMode || false;
         themeBtns.forEach(btn => {
