@@ -547,9 +547,10 @@
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
 
-        // 复选框（测量时占位，不可见）
+        // 复选框 - 测量时模拟多选模式（占空间）
         const checkbox = document.createElement('div');
         checkbox.className = 'msg-checkbox';
+        checkbox.style.display = 'flex';
         checkbox.style.visibility = 'visible';
         checkbox.style.opacity = '0';
         checkbox.style.pointerEvents = 'none';
@@ -584,14 +585,12 @@
         body.appendChild(header);
         body.appendChild(bubble);
 
-        // 顺序：复选框统一在最左，然后按消息类型排列
+        // 顺序：checkbox → avatar → body (Bot) 或 checkbox → body → avatar (User)
         row.appendChild(checkbox);
         if (isUser) {
-            // 用户：body → avatar（body在左，avatar在右）
             row.appendChild(body);
             row.appendChild(avatarImg);
         } else {
-            // Bot：avatar → body（avatar在左，body在右）
             row.appendChild(avatarImg);
             row.appendChild(body);
         }
@@ -725,15 +724,11 @@
         const row = document.createElement('div');
         row.className = 'msg-row ' + (isUser ? 'user' : 'bot');
 
-        // 复选框 - 统一在最左边
+        // 复选框 - 统一在最左（display由CSS控制）
         const checkbox = document.createElement('div');
         checkbox.className = 'msg-checkbox' + (isSelected ? ' checked' : '');
         checkbox.dataset.index = index;
         checkbox.innerHTML = getCheckIcon();
-        if (!multiSelectMode) {
-            checkbox.style.visibility = 'hidden';
-            checkbox.style.opacity = '0';
-        }
 
         const avatarImg = document.createElement('img');
         avatarImg.className = 'msg-avatar';
@@ -766,14 +761,12 @@
         body.appendChild(header);
         body.appendChild(bubble);
 
-        // 顺序：复选框统一在最左
+        // 顺序：checkbox → avatar → body (Bot) 或 checkbox → body → avatar (User)
         row.appendChild(checkbox);
         if (isUser) {
-            // 用户：body在左，avatar在右
             row.appendChild(body);
             row.appendChild(avatarImg);
         } else {
-            // Bot：avatar在左，body在右
             row.appendChild(avatarImg);
             row.appendChild(body);
         }
