@@ -905,8 +905,8 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     visibility: hidden;
     opacity: 0;
     background: transparent;
-    order: 0;
-    margin-right: 4px;
+    order: -1;
+    margin-right: 0;
 }
 .msg-checkbox svg {
     width: 14px;
@@ -934,7 +934,45 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     stroke: #fff;
 }
 
-/* 头像和消息体作为整体 */
+/* Bot消息（左）：默认头像在左，消息体在右 */
+.msg-row.bot {
+    flex-direction: row;
+    justify-content: flex-start;
+}
+.msg-row.bot .msg-avatar {
+    order: 0;
+}
+.msg-row.bot .msg-body {
+    order: 1;
+    align-items: flex-start;
+}
+
+/* 多选模式下Bot消息：复选框在最左，头像和消息体整体右移 */
+.multi-select-mode .msg-row.bot {
+    padding-left: 36px;
+}
+.multi-select-mode .msg-row.bot .msg-checkbox {
+    margin-left: -36px;
+}
+
+/* 用户消息（右）：默认消息体在左，头像在右 */
+.msg-row.user {
+    flex-direction: row;
+    justify-content: flex-end;
+}
+.msg-row.user .msg-body {
+    order: 0;
+    align-items: flex-end;
+}
+.msg-row.user .msg-avatar {
+    order: 1;
+}
+
+/* 多选模式下用户消息：复选框在最左，但消息体和头像位置不变（本来就在右边） */
+.multi-select-mode .msg-row.user .msg-checkbox {
+    margin-right: 8px;
+}
+
 .msg-avatar {
     width: var(--avatar-size);
     height: var(--avatar-size);
@@ -954,32 +992,6 @@ body.dark-mode .msg-avatar {
     flex-direction: column;
     min-width: 50px;
     max-width: 78vw;
-}
-
-/* 用户消息：头像在右，body在左 */
-.msg-row.user {
-    flex-direction: row;
-    justify-content: flex-end;
-}
-.msg-row.user .msg-body {
-    order: 0;
-    align-items: flex-end;
-}
-.msg-row.user .msg-avatar {
-    order: 1;
-}
-
-/* Bot消息：头像在左，body在右 */
-.msg-row.bot {
-    flex-direction: row;
-    justify-content: flex-start;
-}
-.msg-row.bot .msg-body {
-    order: 1;
-    align-items: flex-start;
-}
-.msg-row.bot .msg-avatar {
-    order: 0;
 }
 
 .msg-header {
@@ -1717,7 +1729,6 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
     .msg-checkbox {
         width: 24px;
         height: 24px;
-        margin-right: 2px;
     }
     .msg-checkbox svg {
         width: 12px;
@@ -1725,6 +1736,16 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
     }
     .msg-row {
         gap: 6px;
+    }
+    /* 多选模式Bot消息右移距离减小 */
+    .multi-select-mode .msg-row.bot {
+        padding-left: 30px;
+    }
+    .multi-select-mode .msg-row.bot .msg-checkbox {
+        margin-left: -30px;
+    }
+    .multi-select-mode .msg-row.user .msg-checkbox {
+        margin-right: 6px;
     }
 }
 @media (max-width: 400px) {
@@ -1834,7 +1855,6 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
     .msg-checkbox {
         width: 22px;
         height: 22px;
-        margin-right: 0px;
     }
     .msg-checkbox svg {
         width: 10px;
@@ -1842,5 +1862,14 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
     }
     .msg-row {
         gap: 4px;
+    }
+    .multi-select-mode .msg-row.bot {
+        padding-left: 26px;
+    }
+    .multi-select-mode .msg-row.bot .msg-checkbox {
+        margin-left: -26px;
+    }
+    .multi-select-mode .msg-row.user .msg-checkbox {
+        margin-right: 4px;
     }
 }
