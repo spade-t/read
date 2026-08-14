@@ -80,8 +80,8 @@
     let itemOffsets = [];
     let totalHeight = 0;
 
-    // ===== 固定间距 =====
-    const ITEM_BOTTOM_GAP = 16; // 和css统一，每条消息底部统一间距12px
+    // ===== 固定间距 - 与CSS统一 =====
+    const ITEM_BOTTOM_GAP = 16;
 
     // 搜索状态
     let searchMatchCache = [];
@@ -474,30 +474,26 @@
 
     // ===== 虚拟滚动 - 精准高度估算 =====
 
-   function estimateItemHeight(msg) {
-    const text = msg._text || '';
-    const charCount = text.length;
+    function estimateItemHeight(msg) {
+        const text = msg._text || '';
+        const charCount = text.length;
 
-    // 固定基础高度：头像+名称+气泡内边距
-    let baseHeight = 45;
+        let baseHeight = 45;
 
-    // 气泡文字高度计算
-    const lineWidth = 20;
-    const lineHeight = 20;
-    const lines = Math.max(1, Math.ceil(charCount / lineWidth));
-    const bubbleHeight = lines * lineHeight + 12;
+        const lineWidth = 20;
+        const lineHeight = 20;
+        const lines = Math.max(1, Math.ceil(charCount / lineWidth));
+        const bubbleHeight = lines * lineHeight + 12;
 
-    baseHeight += bubbleHeight;
+        baseHeight += bubbleHeight;
 
-    // 选中状态额外增加按钮高度（10px偏移+按钮自身28px）
-    if(selectedIndex === allMessages.indexOf(msg)){
-        baseHeight += 38;
-    }
+        if (selectedIndex === allMessages.indexOf(msg)) {
+            baseHeight += 38;
+        }
 
-    // 每条消息强制加上统一16px底部间距（和CSS --gap 完全对应）
-    baseHeight += ITEM_BOTTOM_GAP;
+        baseHeight += ITEM_BOTTOM_GAP;
 
-    return Math.max(95, baseHeight);
+        return Math.max(95, baseHeight);
     }
 
     function buildHeightCache() {
@@ -603,7 +599,6 @@
         content.textContent = msg._text || '[空消息]';
         bubble.appendChild(content);
 
-        // ===== 操作按钮 =====
         const actions = document.createElement('div');
         actions.className = 'msg-actions';
 
@@ -632,7 +627,6 @@
         row.appendChild(body);
         item.appendChild(row);
 
-        // 点击消息选中
         item.addEventListener('click', function(e) {
             if (e.target.closest('.msg-action-btn')) return;
             const idx = parseInt(this.dataset.index);
