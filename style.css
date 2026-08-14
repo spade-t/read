@@ -38,6 +38,8 @@
     --theme-btn-active-color: #fff;
     --theme-btn-active-border: #1a73e8;
     --checkbox-size: 28px;
+    --checkbox-gap: 8px;
+    --bot-shift: 36px;
 }
 html,
 body {
@@ -881,15 +883,17 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     padding-bottom: 16px;
 }
 
+/* 消息行 - 使用flex布局，checkbox统一在最左（order:-1） */
 .msg-row {
     display: flex;
     align-items: flex-start;
     gap: 8px;
     width: 100%;
     padding: 0;
+    position: relative;
 }
 
-/* 复选框 - 统一在最左边 */
+/* ===== 复选框 - 统一在最左 ===== */
 .msg-checkbox {
     width: var(--checkbox-size);
     height: var(--checkbox-size);
@@ -902,11 +906,10 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     transition: all 0.2s;
     margin-top: 6px;
     cursor: pointer;
-    visibility: hidden;
-    opacity: 0;
     background: transparent;
     order: -1;
-    margin-right: 0;
+    /* 普通模式隐藏（不占空间） */
+    display: none;
 }
 .msg-checkbox svg {
     width: 14px;
@@ -919,10 +922,9 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     display: none;
 }
 
-/* 多选模式：复选框可见 */
+/* 多选模式：复选框显示（占空间） */
 .multi-select-mode .msg-checkbox {
-    visibility: visible;
-    opacity: 1;
+    display: flex;
 }
 
 .msg-checkbox.checked {
@@ -934,31 +936,33 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     stroke: #fff;
 }
 
-/* Bot消息（左）：默认头像在左，消息体在右 */
+/* ===== Bot消息（左）：普通模式紧贴左侧 ===== */
 .msg-row.bot {
-    flex-direction: row;
     justify-content: flex-start;
+    padding-left: 0;
 }
 .msg-row.bot .msg-avatar {
     order: 0;
+    flex-shrink: 0;
 }
 .msg-row.bot .msg-body {
     order: 1;
     align-items: flex-start;
 }
 
-/* 多选模式下Bot消息：复选框在最左，头像和消息体整体右移 */
+/* Bot消息多选模式：整体右移（padding-left），checkbox在最左（用负margin拉回） */
 .multi-select-mode .msg-row.bot {
-    padding-left: 36px;
+    padding-left: var(--bot-shift);
 }
 .multi-select-mode .msg-row.bot .msg-checkbox {
-    margin-left: -36px;
+    margin-left: calc(-1 * var(--bot-shift));
+    margin-right: 0;
 }
 
-/* 用户消息（右）：默认消息体在左，头像在右 */
+/* ===== 用户消息（右）：内容靠右 ===== */
 .msg-row.user {
-    flex-direction: row;
     justify-content: flex-end;
+    padding-left: 0;
 }
 .msg-row.user .msg-body {
     order: 0;
@@ -966,11 +970,13 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
 }
 .msg-row.user .msg-avatar {
     order: 1;
+    flex-shrink: 0;
 }
 
-/* 多选模式下用户消息：复选框在最左，但消息体和头像位置不变（本来就在右边） */
+/* 用户消息多选模式：checkbox在最左，内容位置不变 */
 .multi-select-mode .msg-row.user .msg-checkbox {
-    margin-right: 8px;
+    margin-right: var(--checkbox-gap);
+    margin-left: 0;
 }
 
 .msg-avatar {
@@ -1578,6 +1584,11 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
 
 /* 响应式 */
 @media (max-width: 600px) {
+    :root {
+        --checkbox-size: 24px;
+        --checkbox-gap: 6px;
+        --bot-shift: 30px;
+    }
     #header {
         padding: 8px 10px 6px 10px;
     }
@@ -1727,8 +1738,8 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
         font-size: 11px;
     }
     .msg-checkbox {
-        width: 24px;
-        height: 24px;
+        width: var(--checkbox-size);
+        height: var(--checkbox-size);
     }
     .msg-checkbox svg {
         width: 12px;
@@ -1737,18 +1748,22 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
     .msg-row {
         gap: 6px;
     }
-    /* 多选模式Bot消息右移距离减小 */
     .multi-select-mode .msg-row.bot {
-        padding-left: 30px;
+        padding-left: var(--bot-shift);
     }
     .multi-select-mode .msg-row.bot .msg-checkbox {
-        margin-left: -30px;
+        margin-left: calc(-1 * var(--bot-shift));
     }
     .multi-select-mode .msg-row.user .msg-checkbox {
-        margin-right: 6px;
+        margin-right: var(--checkbox-gap);
     }
 }
 @media (max-width: 400px) {
+    :root {
+        --checkbox-size: 22px;
+        --checkbox-gap: 4px;
+        --bot-shift: 26px;
+    }
     #title {
         font-size: 16px;
         margin: 0 6px;
@@ -1853,8 +1868,8 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
         font-size: 10px;
     }
     .msg-checkbox {
-        width: 22px;
-        height: 22px;
+        width: var(--checkbox-size);
+        height: var(--checkbox-size);
     }
     .msg-checkbox svg {
         width: 10px;
@@ -1864,12 +1879,12 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
         gap: 4px;
     }
     .multi-select-mode .msg-row.bot {
-        padding-left: 26px;
+        padding-left: var(--bot-shift);
     }
     .multi-select-mode .msg-row.bot .msg-checkbox {
-        margin-left: -26px;
+        margin-left: calc(-1 * var(--bot-shift));
     }
     .multi-select-mode .msg-row.user .msg-checkbox {
-        margin-right: 4px;
+        margin-right: var(--checkbox-gap);
     }
 }
