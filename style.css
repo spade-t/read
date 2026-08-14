@@ -794,26 +794,24 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     left: 0;
     right: 0;
     overflow: visible;
-    /* 取消原有padding-bottom，改用margin统一固定间距 */
     padding: 0;
-    /* 每条消息底部预留统一固定间距，同时容纳操作按钮 */
+    /* 全局统一底部留白，容纳操作按钮，所有消息间距完全一致 */
     padding-bottom: 16px;
 }
-/* 最后一条消息同样保留间距，全局完全统一 */
 .msg-item:last-child {
     padding-bottom: 16px;
 }
 
-/* 选中状态气泡描边不变 */
+/* 选中气泡蓝色外框 */
 .msg-item.selected .msg-bubble {
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
 }
 
-/* 操作按钮区域：完全内置在当前条目内，不会溢出到下一条 */
+/* 操作按钮整体下移，避免侵入下一条消息 */
 .msg-actions {
     display: none;
-    margin-top: 6px;
+    margin-top: 10px;
     padding: 0 4px;
     gap: 8px;
 }
@@ -821,19 +819,20 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     display: flex;
 }
 
-/* 消息行基础布局 */
+/* 消息行布局：用户消息强制靠右 */
 .msg-row {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    /* 限制消息整体最大宽度，为气泡自适应打底 */
     max-width: 88%;
 }
+/* 我的消息：自动右对齐，短气泡贴右侧 */
 .msg-row.user {
     align-self: flex-end;
     flex-direction: row-reverse;
     margin-left: auto;
 }
+/* Bot消息：靠左 */
 .msg-row.bot {
     align-self: flex-start;
     flex-direction: row;
@@ -858,7 +857,7 @@ body.dark-mode .msg-avatar {
     display: flex;
     flex-direction: column;
     min-width: 50px;
-    /* 核心：气泡最大宽度限制，不会铺满屏幕 */
+    /* 气泡最大宽度限制，适配长短文本 */
     max-width: min(600px, 72vw);
 }
 .msg-header {
@@ -899,9 +898,8 @@ body.dark-mode .msg-avatar {
     border-top-left-radius: 4px;
     color: var(--text-color);
     transition: background 0.3s, color 0.3s, box-shadow 0.3s;
-    /* 关键：宽度自适应内容，不强制填满父容器 */
+    /* 自适应文字宽度，短气泡自动收窄 */
     width: fit-content;
-    /* 最大宽度和父层msg-body保持一致 */
     max-width: 100%;
 }
 .msg-row.user .msg-bubble {
@@ -918,6 +916,7 @@ body.dark-mode .msg-avatar {
     white-space: pre-wrap;
 }
 
+/* 复制/删除按钮样式 */
 .msg-actions .msg-action-btn {
     width: 28px;
     height: 28px;
