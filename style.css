@@ -788,28 +788,24 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     min-height: 100%;
 }
 
-/* ===== 消息条目 最终修复版：统一间距、防重叠、气泡自适应 ===== */
+/* ===== 消息条目 - 修复版 ===== */
 .msg-item {
     position: absolute;
     left: 0;
     right: 0;
     overflow: visible;
     padding: 0;
-    /* 全局统一底部安全留白 16px，完全匹配 JS ITEM_BOTTOM_GAP=16 */
-    padding-bottom: 16px;
+    padding-bottom: 16px; /* 与 JS ITEM_BOTTOM_GAP 统一 */
 }
-/* 最后一条消息同样保留完整间距，所有消息间距完全均等 */
 .msg-item:last-child {
     padding-bottom: 16px;
 }
 
-/* 选中气泡蓝色外框 */
 .msg-item.selected .msg-bubble {
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
 }
 
-/* 操作按钮：加大向下偏移，完全落在本条留白内，绝不压下一条 */
 .msg-actions {
     display: none;
     margin-top: 12px;
@@ -820,7 +816,7 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
     display: flex;
 }
 
-/* 消息行布局：用户消息强制整行靠右，解决短句不贴右侧 */
+/* 消息行布局 - 修复右对齐 */
 .msg-row {
     display: flex;
     align-items: flex-start;
@@ -830,10 +826,9 @@ body.dark-mode #messages-container::-webkit-scrollbar-thumb {
 }
 .msg-row.user {
     flex-direction: row-reverse;
-    justify-content: flex-end;
 }
 .msg-row.bot {
-    justify-content: flex-start;
+    flex-direction: row;
 }
 
 .msg-avatar {
@@ -850,12 +845,24 @@ body.dark-mode .msg-avatar {
     border-color: var(--bg-color);
 }
 
-/* 消息内容容器：取消父级宽度限制，交给气泡自身自适应 */
+/* 消息体 - 关键修复：限制宽度 + 对齐控制 */
 .msg-body {
     display: flex;
     flex-direction: column;
     min-width: 50px;
+    max-width: 78vw;
 }
+
+/* 用户消息靠右对齐 */
+.msg-row.user .msg-body {
+    align-items: flex-end;
+}
+
+/* Bot 消息靠左对齐 */
+.msg-row.bot .msg-body {
+    align-items: flex-start;
+}
+
 .msg-header {
     display: flex;
     align-items: baseline;
@@ -882,7 +889,7 @@ body.dark-mode .msg-avatar {
     justify-content: flex-start;
 }
 
-/* 气泡本体：width:fit-content 实现短句窄气泡，长句自动换行 */
+/* 气泡本体 */
 .msg-bubble {
     padding: 10px 14px;
     border-radius: var(--radius);
@@ -896,7 +903,7 @@ body.dark-mode .msg-avatar {
     color: var(--text-color);
     transition: background 0.3s, color 0.3s, box-shadow 0.3s;
     width: fit-content;
-    max-width: min(600px, 72vw);
+    max-width: min(560px, 72vw);
 }
 .msg-row.user .msg-bubble {
     background: var(--bubble-user-bg);
@@ -912,7 +919,7 @@ body.dark-mode .msg-avatar {
     white-space: pre-wrap;
 }
 
-/* 按钮布局对齐 */
+/* 操作按钮对齐 */
 .msg-row.user .msg-actions {
     justify-content: flex-end;
 }
@@ -920,7 +927,6 @@ body.dark-mode .msg-avatar {
     justify-content: flex-start;
 }
 
-/* 复制/删除按钮样式 */
 .msg-actions .msg-action-btn {
     width: 28px;
     height: 28px;
@@ -1434,15 +1440,13 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
     #messages-container {
         padding: 6px 6px 4px 6px;
     }
-   .msg-row {
-    max-width: 92%;
-    }
     .msg-body {
-    max-width: 78vw;
+        max-width: 78vw;
     }
     .msg-bubble {
-    font-size: 15px;
-    padding: 8px 12px;
+        max-width: 68vw;
+        font-size: 15px;
+        padding: 8px 12px;
     }
     .msg-header {
         font-size: 12px;
@@ -1552,11 +1556,12 @@ body.dark-mode .msg-item.highlighted .msg-bubble {
         height: 28px;
     }
     .msg-body {
-    max-width: 82vw;
+        max-width: 82vw;
     }
     .msg-bubble {
-    font-size: 14px;
-    padding: 6px 10px;
+        max-width: 72vw;
+        font-size: 14px;
+        padding: 6px 10px;
     }
     .msg-header .mname {
         font-size: 13px;
